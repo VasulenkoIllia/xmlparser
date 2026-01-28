@@ -16,14 +16,14 @@ services:
       - >
         ofelia.job-exec.lispo.command=sh -lc
         'node services/run-service.mjs services/lispo.json
-        && wget -qO- "https://status.workflo.space/api/push/OzF3oV9VSw?status=up&msg=OK&ping=" >/dev/null'
+        && wget -qO- "https://status.workflo.space/api/push/OzF3oV9VSw" >/dev/null'
 
       # ===== CLSPORT job =====
       - "ofelia.job-exec.clsport.schedule=5 0 * * *"
       - >
         ofelia.job-exec.clsport.command=sh -lc
         'node services/run-service.mjs services/clsport.json
-        && wget -qO- "https://status.workflo.space/api/push/JgIPE6I5H2?status=up&msg=OK&ping=" >/dev/null'
+        && wget -qO- "https://status.workflo.space/api/push/JgIPE6I5H2" >/dev/null'
 
   ofelia:
     image: mcuadros/ofelia:0.3.13
