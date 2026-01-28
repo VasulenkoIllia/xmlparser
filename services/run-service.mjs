@@ -6,6 +6,8 @@ import { google } from 'googleapis';
 import os from 'os';
 import path from 'path';
 
+const TZ = process.env.TZ || 'UTC';
+
 const DEFAULT_COLUMNS = [
   { type: 'field', header: 'price', from: ['price'] },
   { type: 'field', header: 'vendorCode', from: ['vendorCode'] },
@@ -377,11 +379,17 @@ async function main() {
   const sheetProps = await ensureSheet(sheets, cfg.sheetId, cfg.sheetName, cfg.writeRetries, cfg.retryDelayMs);
   await resizeSheet(sheets, cfg.sheetId, sheetProps, rows.length + 10, rows[0].length + 5, cfg.writeRetries, cfg.retryDelayMs);
   await clearSheet(sheets, cfg.sheetId, cfg.sheetName, cfg.writeRetries, cfg.retryDelayMs);
-  await writeSheet(sheets, cfg.sheetId, cfg.sheetName, rows, cfg.chunkRows, cfg.writeRetries, cfg.retryDelayMs);
+    await writeSheet(sheets, cfg.sheetId, cfg.sheetName, rows, cfg.chunkRows, cfg.writeRetries, cfg.retryDelayMs);
 
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const timeStr = now.toTimeString().slice(0, 8);
+    const dateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(now); // yyyy-mm-dd
+    const timeStr = new Intl.DateTimeFormat('en-GB', {
+      timeZone: TZ,
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(now);
     await upsertMeta(sheets, cfg, dateStr, timeStr, rows.length - 1);
 
     console.log(
