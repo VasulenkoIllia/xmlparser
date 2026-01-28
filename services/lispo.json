@@ -1,0 +1,16 @@
+{
+  "name": "lispo",
+  "feedUrl": "https://lispo.com.ua/promua.xml",
+  "sheetId": "1zjRLA7MkGlXeGE2xN6C8eAaduKtZJeSugf9ejy3OFgk",
+  "sheetName": "offers",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "pictures", "header": "picture_urls" },
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "param", "header": "Розмір", "names": ["Розмір"], "insideParensOnly": true },
+    { "type": "field", "header": "quantity_in_stock", "from": ["quantity_in_stock"] }
+  ]
+}

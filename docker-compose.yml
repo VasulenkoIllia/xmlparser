@@ -1,0 +1,40 @@
+services:
+  feeds-runner:
+    build: .
+    container_name: feeds-runner
+    env_file:
+      - .env
+    command: ["sh", "-lc", "sleep infinity"]
+    restart: unless-stopped
+
+    labels:
+      - "traefik.enable=false"
+      - "ofelia.enabled=true"
+
+      # ===== LISPO job =====
+      - "ofelia.job-exec.lispo.schedule=5 0 * * *"
+      - >
+        ofelia.job-exec.lispo.command=sh -lc
+        'node services/run-service.mjs services/lispo.json
+        && wget -qO- "https://status.workflo.space/api/push/OzF3oV9VSw?status=up&msg=OK&ping=" >/dev/null'
+
+      # ===== CLSPORT job =====
+      - "ofelia.job-exec.clsport.schedule=5 0 * * *"
+      - >
+        ofelia.job-exec.clsport.command=sh -lc
+        'node services/run-service.mjs services/clsport.json
+        && wget -qO- "https://status.workflo.space/api/push/JgIPE6I5H2?status=up&msg=OK&ping=" >/dev/null'
+
+  ofelia:
+    image: mcuadros/ofelia:0.3.13
+    container_name: ofelia
+    depends_on:
+      - feeds-runner
+    environment:
+      - TZ=Europe/Kyiv
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: daemon --docker
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
