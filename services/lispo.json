@@ -6,6 +6,7 @@
   "chunkRows": 1500,
   "columns": [
     { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "formula", "header": "Дроп", "template": "=A{row}*0,8" },
     { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
     { "type": "picture_image", "header": "picture" },
     { "type": "pictures", "header": "picture_urls" },

@@ -178,6 +178,7 @@ function buildRows(offers, cfg) {
   offers.forEach((o) => {
     const pics = arrayify(o.picture);
     const firstPic = pics[0] || '';
+    const rowNumber = rows.length + 1; // sheet row number (header = 1)
 
     const row = cfg.columns.map((c) => {
       let val = '';
@@ -196,6 +197,11 @@ function buildRows(offers, cfg) {
           break;
         case 'picture_image':
           val = firstPic ? `=IMAGE("${firstPic}")` : '';
+          break;
+        case 'formula':
+          if (c.template) {
+            val = c.template.replaceAll('{row}', rowNumber);
+          }
           break;
         default:
           val = '';

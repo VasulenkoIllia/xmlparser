@@ -10,6 +10,7 @@
     { "type": "field", "header": "price", "from": ["price"] },
     { "type": "field", "header": "rrc", "from": ["rrc"] },
     { "type": "field", "header": "SIZE", "from": ["SIZE"] },
-    { "type": "field", "header": "Spec", "from": ["Spec"] }
+    { "type": "field", "header": "Spec", "from": ["Spec"] },
+    { "type": "formula", "header": "Дроп", "template": "=D{row}*(1-F{row}/100)" }
   ]
 }
