@@ -16,15 +16,9 @@ services:
       - "ofelia.enabled=true"
       # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05
       - "ofelia.job-exec.lispo.schedule=0 5 0 * * *"
-      - >
-        ofelia.job-exec.lispo.command=sh -lc
-        'node services/run-service.mjs services/lispo.json
-        && wget -qO- "https://status.workflo.space/api/push/OzF3oV9VSw" >/dev/null'
+      - "ofelia.job-exec.lispo.command=sh -lc 'node services/run-service.mjs services/lispo.json && wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw\" >/dev/null'"
       - "ofelia.job-exec.clsport.schedule=0 5 0 * * *"
-      - >
-        ofelia.job-exec.clsport.command=sh -lc
-        'node services/run-service.mjs services/clsport.json
-        && wget -qO- "https://status.workflo.space/api/push/JgIPE6I5H2" >/dev/null'
+      - "ofelia.job-exec.clsport.command=sh -lc 'node services/run-service.mjs services/clsport.json && wget -qO- \"https://status.workflo.space/api/push/JgIPE6I5H2\" >/dev/null'"
 
   ofelia:
     image: mcuadros/ofelia:0.3.13
