@@ -6,7 +6,7 @@
 ## Структура
 - `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда.
 - `services/lispo.json` / `services/clsport.json` — конфіги фідів (URL, цільовий аркуш, колонки, поведінка розміру).
-- `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05 Europe/Kyiv).
+- `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05 Europe/Kyiv, 6-польовий cron `0 5 0 * * *`).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
 - `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`).
 
@@ -33,14 +33,15 @@ Meta-аркуш `<sheetName>_meta`:
 Ретраї та безпека:
 - Всі мережеві виклики (fetch, get/batchUpdate, clear, write chunks, meta) з ретраями (дефолт 3, 2s * 2^(n-1)).
 - Лок-файл у `/tmp/feed-lock-<name>.lock` не дає двом запускати один фід одночасно.
+- TZ задається через `TZ` (compose ставить Europe/Kyiv); дата/час у meta формуються з урахуванням TZ.
 
 ## Запуск у Docker
 1. Створи зовнішню мережу Traefik за потреби (`docker network create traefik`) або залиш без неї.
 2. Поклади `.env` поруч із `docker-compose.yml` (тільки креденшіали та, опційно, налаштування ретраїв).
 3. `docker compose up -d --build`
 4. Ofelia всередині складу виконує:
-   - lispo — щодня 00:05 Europe/Kyiv
-   - clsport — щодня 00:05 Europe/Kyiv
+   - lispo — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - clsport — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
 
 ## Додавання нового фіда
 1. Скопіюй існуючий конфіг у `services/<new>.json`.
