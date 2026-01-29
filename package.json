@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "service:lispo": "node services/run-service.mjs services/lispo.json",
-    "service:clsport": "node services/run-service.mjs services/clsport.json"
+    "service:clsport": "node services/run-service.mjs services/clsport.json",
+    "service:gorgany_alpha": "node services/run-service.mjs services/gorgany_alpha.json"
   },
   "private": true,
   "dependencies": {

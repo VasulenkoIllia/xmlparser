@@ -19,6 +19,8 @@ services:
       - "ofelia.job-exec.lispo.command=sh -lc 'node services/run-service.mjs services/lispo.json && wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw\" >/dev/null'"
       - "ofelia.job-exec.clsport.schedule=0 5 0 * * *"
       - "ofelia.job-exec.clsport.command=sh -lc 'node services/run-service.mjs services/clsport.json && wget -qO- \"https://status.workflo.space/api/push/JgIPE6I5H2\" >/dev/null'"
+      - "ofelia.job-exec.gorgany_alpha.schedule=0 5 0 * * *"
+      - "ofelia.job-exec.gorgany_alpha.command=sh -lc 'node services/run-service.mjs services/gorgany_alpha.json && wget -qO- \"https://status.workflo.space/api/push/gZf0qECvmI\" >/dev/null'"
 
   ofelia:
     image: mcuadros/ofelia:0.3.13

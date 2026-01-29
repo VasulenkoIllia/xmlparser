@@ -143,12 +143,31 @@ async function resizeSheet(sheets, spreadsheetId, sheetObj, neededRows, neededCo
   );
 }
 
+function extractOffers(parsed) {
+  // YML canonical: <yml_catalog><shop><offers><offer>
+  let offers = parsed?.yml_catalog?.shop?.offers?.offer;
+  if (offers) return offers;
+
+  // Sometimes <shop><offers><offer> without yml_catalog
+  offers = parsed?.shop?.offers?.offer;
+  if (offers) return offers;
+
+  // Simple products list: <products><product>
+  offers = parsed?.products?.product;
+  if (offers) return offers;
+
+  return null;
+}
+
 async function fetchOffers(feedUrl) {
   const xml = (await axios.get(feedUrl, { timeout: 60_000 })).data;
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
   const feed = parser.parse(xml);
-  const offers = feed?.yml_catalog?.shop?.offers?.offer;
-  if (!offers) throw new Error('No offers found in feed');
+  const offers = extractOffers(feed);
+  if (!offers) {
+    const rootKeys = Object.keys(feed || {});
+    throw new Error(`No offers found in feed (root keys: ${rootKeys.join(', ')})`);
+  }
   return Array.isArray(offers) ? offers : [offers];
 }
 

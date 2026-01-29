@@ -1,0 +1,15 @@
+{
+  "name": "gorgany_alpha",
+  "feedUrl": "https://gorgany.eu/xmlxls/all_xml_alpha.xml",
+  "sheetId": "1PtUuIozSxoPo_yAnII3hv5XwQXmsu7Sz1IzHqWZZEHk",
+  "sheetName": "gorgany_alpha",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "id", "from": ["id"] },
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "rrc", "from": ["rrc"] },
+    { "type": "field", "header": "SIZE", "from": ["SIZE"] },
+    { "type": "field", "header": "Spec", "from": ["Spec"] }
+  ]
+}
