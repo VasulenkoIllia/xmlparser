@@ -14,12 +14,13 @@ services:
     labels:
       - "traefik.enable=false"
       - "ofelia.enabled=true"
-      - "ofelia.job-exec.lispo.schedule=5 0 * * *"
+      # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05
+      - "ofelia.job-exec.lispo.schedule=0 5 0 * * *"
       - >
         ofelia.job-exec.lispo.command=sh -lc
         'node services/run-service.mjs services/lispo.json
         && wget -qO- "https://status.workflo.space/api/push/OzF3oV9VSw" >/dev/null'
-      - "ofelia.job-exec.clsport.schedule=5 0 * * *"
+      - "ofelia.job-exec.clsport.schedule=0 5 0 * * *"
       - >
         ofelia.job-exec.clsport.command=sh -lc
         'node services/run-service.mjs services/clsport.json
