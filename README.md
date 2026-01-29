@@ -1,14 +1,14 @@
 ## Overview
 - Проєкт тягне YML/EML фіди, трансформує у потрібні колонки і пише в окремі Google Sheets через Service Account.
-- Є два сервісні профілі (lispo, clsport); легко додати нові через JSON-конфіг.
+- Є три сервісні профілі (lispo, clsport, gorgany_alpha); легко додати нові через JSON-конфіг.
 - Оновлення запускаються контейнером `feeds-runner`, а розклад керує `ofelia` (cron усередині Docker).
 
 ## Структура
 - `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда.
-- `services/lispo.json` / `services/clsport.json` — конфіги фідів (URL, цільовий аркуш, колонки, поведінка розміру).
+- `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги фідів (URL, цільовий аркуш, колонки, поведінка розміру).
 - `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05 Europe/Kyiv, 6-польовий cron `0 5 0 * * *`).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
-- `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`).
+- `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `GORGANY_ALPHA_SHEET_ID` для нового фіда.
 
 ## Колонки й трансформації
 Типи колонок у конфіг-JSON:
@@ -17,14 +17,16 @@
 - `param`: бере перший param з імен із `names`.
 - `picture_image`: формула `=IMAGE(<перше фото>)`.
 - `pictures`: усі фото, з’єднані через `; `.
+- `formula`: підставляє номер рядка (`{row}`) у `template` і записує формулу (наприклад `=D{row}*(1-F{row}/100)` або `=A{row}*0,8`).
 Post-обробка (опційна в колонці):  
 `insideParensOnly` — залишає текст всередині перших дужок.  
 `stripParens` — видаляє всі дужки з вмістом.  
 `cleanContains` — якщо значення містить рядок зі списку, очищує поле.
 
 Специфіка поточних фідів:
-- lispo: `Розмір` бере вміст у дужках, якщо є; інакше залишає значення.
-- clsport: `Розмір` видаляє все в дужках і чистить рядки зі словом “Розмір/Размер/Розмер”.
+- lispo: `Розмір` бере вміст у дужках; колонка `Дроп` = `price * 0,8`.
+- clsport: `Розмір` видаляє все в дужках і чистить рядки зі словом “Розмір/Размер/Розмер`.
+- gorgany_alpha: фід `https://gorgany.eu/xmlxls/all_xml_alpha.xml`; колонки `id, name, price, rrc, SIZE, Spec, Дроп`, де `Дроп = D*(1-F/100)`.
 
 Meta-аркуш `<sheetName>_meta`:
 - Пише `last_update_date`, `last_update_time`, `rows`.
@@ -42,6 +44,7 @@ Meta-аркуш `<sheetName>_meta`:
 4. Ofelia всередині складу виконує:
    - lispo — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - clsport — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - gorgany_alpha — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
 
 ## Додавання нового фіда
 1. Скопіюй існуючий конфіг у `services/<new>.json`.
@@ -53,6 +56,8 @@ Meta-аркуш `<sheetName>_meta`:
 GOOGLE_CLIENT_EMAIL=... \
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n... \n-----END PRIVATE KEY-----\n" \
 node services/run-service.mjs services/lispo.json
+# або
+node services/run-service.mjs services/gorgany_alpha.json
 ```
 
 ## Ліміти та застереження
