@@ -1,0 +1,17 @@
+{
+  "name": "lekos",
+  "feedUrl": "https://lekos.com.ua/partner/",
+  "sheetId": "1yILFZTbFI-8adJz_0_ukL8fz4eQb_lt5KwWAT2zY0bE",
+  "sheetName": "lekos",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "attribute", "header": "id", "from": ["id"] },
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "attribute", "header": "available", "from": ["available"] },
+    { "type": "pictures", "header": "picture_urls" },
+    { "type": "field", "header": "price_partner", "from": ["price_partner"] },
+    { "type": "field", "header": "stock_quantity", "from": ["stock_quantity"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

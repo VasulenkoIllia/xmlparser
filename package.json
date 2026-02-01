@@ -7,13 +7,17 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "service:lispo": "node services/run-service.mjs services/lispo.json",
     "service:clsport": "node services/run-service.mjs services/clsport.json",
-    "service:gorgany_alpha": "node services/run-service.mjs services/gorgany_alpha.json"
+    "service:gorgany_alpha": "node services/run-service.mjs services/gorgany_alpha.json",
+    "service:lekos": "node services/run-service.mjs services/lekos.json",
+    "service:og_shop": "node services/run-service.mjs services/og_shop.json",
+    "export:feeds": "node scripts/export-feeds.mjs"
   },
   "private": true,
   "dependencies": {
     "axios": "^1.13.4",
     "dotenv": "^17.2.3",
     "fast-xml-parser": "^5.3.3",
-    "googleapis": "^170.1.0"
+    "googleapis": "^170.1.0",
+    "xlsx": "^0.18.5"
   }
 }

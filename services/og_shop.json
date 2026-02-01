@@ -1,0 +1,16 @@
+{
+  "name": "og_shop",
+  "feedUrl": "https://og-shop.in.ua/xml/out.php",
+  "sheetId": "1naPf2qk72InlwiR3mt_1ZOZeBKjRa1iZbVVz8lefiTI",
+  "sheetName": "og_shop",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "formula", "header": "Дроп", "template": "=B{row}*0,9" },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
+    { "type": "field", "header": "quantity_in_stock", "from": ["quantity_in_stock"] },
+    { "type": "param", "header": "Размер", "names": ["Размер"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

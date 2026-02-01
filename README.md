@@ -6,6 +6,9 @@
 ## Структура
 - `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда.
 - `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги фідів (URL, цільовий аркуш, колонки, поведінка розміру).
+- `services/lekos.json` — фід lekos (id, name, price, available, picture_urls, price_partner, stock_quantity, vendor).
+- `services/og_shop.json` — фід og-shop (name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, Размер, vendor).
+- `services/lekos.json` — новий фід lekos (id, name, price, available, picture_urls, price_partner, stock_quantity, vendor).
 - `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05 Europe/Kyiv, 6-польовий cron `0 5 0 * * *`).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
 - `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `GORGANY_ALPHA_SHEET_ID` для нового фіда.
