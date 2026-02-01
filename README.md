@@ -1,14 +1,13 @@
 ## Overview
 - Проєкт тягне YML/EML фіди, трансформує у потрібні колонки і пише в окремі Google Sheets через Service Account.
-- Є три сервісні профілі (lispo, clsport, gorgany_alpha); легко додати нові через JSON-конфіг.
+- Є п’ять сервісних профілів (lispo, clsport, gorgany_alpha, lekos, og_shop); легко додати нові через JSON-конфіг.
 - Оновлення запускаються контейнером `feeds-runner`, а розклад керує `ofelia` (cron усередині Docker).
 
 ## Структура
 - `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда.
-- `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги фідів (URL, цільовий аркуш, колонки, поведінка розміру).
-- `services/lekos.json` — фід lekos (id, name, price, available, picture_urls, price_partner, stock_quantity, vendor).
-- `services/og_shop.json` — фід og-shop (name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, Размер, vendor).
-- `services/lekos.json` — новий фід lekos (id, name, price, available, picture_urls, price_partner, stock_quantity, vendor).
+- `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги існуючих фідів.
+- `services/lekos.json` — фід lekos → sheet `1yILFZTbFI-8adJz_0_ukL8fz4eQb_lt5KwWAT2zY0bE`, колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
+- `services/og_shop.json` — фід og-shop → sheet `1naPf2qk72InlwiR3mt_1ZOZeBKjRa1iZbVVz8lefiTI`, колонки `name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, param:Размер, vendor`.
 - `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05 Europe/Kyiv, 6-польовий cron `0 5 0 * * *`).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
 - `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `GORGANY_ALPHA_SHEET_ID` для нового фіда.
@@ -30,6 +29,8 @@ Post-обробка (опційна в колонці):
 - lispo: `Розмір` бере вміст у дужках; колонка `Дроп` = `price * 0,8`.
 - clsport: `Розмір` видаляє все в дужках і чистить рядки зі словом “Розмір/Размер/Розмер`.
 - gorgany_alpha: фід `https://gorgany.eu/xmlxls/all_xml_alpha.xml`; колонки `id, name, price, rrc, SIZE, Spec, Дроп`, де `Дроп = D*(1-F/100)`.
+- lekos: фід `https://lekos.com.ua/partner/`; колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
+- og_shop: фід `https://og-shop.in.ua/xml/out.php`; колонки `name, price, Дроп=B*0,9, vendorCode, quantity_in_stock, param(Размер), vendor`.
 
 Meta-аркуш `<sheetName>_meta`:
 - Пише `last_update_date`, `last_update_time`, `rows`.
@@ -48,6 +49,9 @@ Meta-аркуш `<sheetName>_meta`:
    - lispo — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - clsport — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - gorgany_alpha — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - lekos — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - og_shop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - вебхуки сповіщень: lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`.
 
 ## Додавання нового фіда
 1. Скопіюй існуючий конфіг у `services/<new>.json`.
@@ -61,6 +65,10 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n... \n-----END PRIVATE KEY-----
 node services/run-service.mjs services/lispo.json
 # або
 node services/run-service.mjs services/gorgany_alpha.json
+# або
+node services/run-service.mjs services/lekos.json
+# або
+node services/run-service.mjs services/og_shop.json
 ```
 
 ## Ліміти та застереження
