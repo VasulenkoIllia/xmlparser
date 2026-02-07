@@ -144,8 +144,12 @@ async function resizeSheet(sheets, spreadsheetId, sheetObj, neededRows, neededCo
 }
 
 function extractOffers(parsed) {
+  // YML sometimes: <yml_catalog><offers><offer>
+  let offers = parsed?.yml_catalog?.offers?.offer;
+  if (offers) return offers;
+
   // YML canonical: <yml_catalog><shop><offers><offer>
-  let offers = parsed?.yml_catalog?.shop?.offers?.offer;
+  offers = parsed?.yml_catalog?.shop?.offers?.offer;
   if (offers) return offers;
 
   // Sometimes <shop><offers><offer> without yml_catalog
