@@ -70,6 +70,21 @@ function pickParam(obj, names) {
   return '';
 }
 
+function normalizeCellValue(val) {
+  if (val === undefined || val === null) return val;
+  if (Array.isArray(val)) {
+    return val
+      .map((v) => normalizeCellValue(v))
+      .filter((v) => v !== undefined && v !== null && v !== '')
+      .join('; ');
+  }
+  if (typeof val === 'object') {
+    if (Object.prototype.hasOwnProperty.call(val, '#text')) return val['#text'];
+    return JSON.stringify(val);
+  }
+  return val;
+}
+
 function colLetter(n) {
   let s = '';
   while (n) {
@@ -210,6 +225,8 @@ function buildRows(offers, cfg) {
         default:
           val = '';
       }
+
+      val = normalizeCellValue(val);
 
       if (val !== undefined && val !== null && val !== '') {
         let valStr = String(val);

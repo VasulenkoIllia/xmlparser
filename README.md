@@ -1,12 +1,15 @@
 ## Overview
 - Проєкт тягне YML/EML фіди, трансформує у потрібні колонки і пише в окремі Google Sheets через Service Account.
+- Є окремий раннер для нормалізації листа з однієї таблиці у іншу (rabona), з meta-аркушем як у фідів.
 - Є п’ять сервісних профілів (lispo, clsport, gorgany_alpha, lekos, og_shop); легко додати нові через JSON-конфіг.
 - Оновлення запускаються контейнером `feeds-runner`, а розклад керує `ofelia` (cron усередині Docker).
 
 ## Структура
 - `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда.
+- `services/run-normalize-sheet.mjs` — нормалізує лист у окрему таблицю, оновлює meta-аркуш, має лок-файл.
 - `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги існуючих фідів.
 - `services/lekos.json` — фід lekos → sheet `1yILFZTbFI-8adJz_0_ukL8fz4eQb_lt5KwWAT2zY0bE`, колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
+- `services/rabona.json` — нормалізація Google Sheets (source → target).
 - `services/og_shop.json` — фід og-shop → sheet `1naPf2qk72InlwiR3mt_1ZOZeBKjRa1iZbVVz8lefiTI`, колонки `name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, param:Размер, vendor`.
 - `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05 Europe/Kyiv, 6-польовий cron `0 5 0 * * *`).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
@@ -50,8 +53,9 @@ Meta-аркуш `<sheetName>_meta`:
    - clsport — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - gorgany_alpha — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - lekos — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-   - og_shop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-   - вебхуки сповіщень: lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`.
+- og_shop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+- вебхуки сповіщень: lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`.
+- rabona — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
 
 ## Додавання нового фіда
 1. Скопіюй існуючий конфіг у `services/<new>.json`.
@@ -69,6 +73,8 @@ node services/run-service.mjs services/gorgany_alpha.json
 node services/run-service.mjs services/lekos.json
 # або
 node services/run-service.mjs services/og_shop.json
+# або
+node services/run-normalize-sheet.mjs services/rabona.json
 ```
 
 ## Ліміти та застереження

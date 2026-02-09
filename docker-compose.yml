@@ -26,7 +26,9 @@ services:
       - "ofelia.job-exec.og_shop.schedule=0 5 0 * * *"
       - "ofelia.job-exec.og_shop.command=sh -lc 'node services/run-service.mjs services/og_shop.json && wget -qO- \"https://status.workflo.space/api/push/bwSm9221oi\" >/dev/null'"
       - "ofelia.job-exec.roksana_shop.schedule=0 5 0 * * *"
-      - "ofelia.job-exec.roksana_shop.command=sh -lc 'node services/run-service.mjs services/roksana_shop.json'"
+      - "ofelia.job-exec.roksana_shop.command=sh -lc 'node services/run-service.mjs services/roksana_shop.json && wget -qO- \"https://status.workflo.space/api/push/m3gaKHNfDc\" >/dev/null'"
+      - "ofelia.job-exec.rabona.schedule=0 5 0 * * *"
+      - "ofelia.job-exec.rabona.command=sh -lc 'node services/run-normalize-sheet.mjs services/rabona.json && wget -qO- \"https://status.workflo.space/api/push/67vFtA8We9\" >/dev/null'"
 
   ofelia:
     image: mcuadros/ofelia:0.3.13

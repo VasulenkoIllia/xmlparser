@@ -1,7 +1,7 @@
 {
   "name": "roksana_shop",
   "feedUrl": "https://roksana-shop.com/price-lists/roz2023.xml",
-  "sheetId": "PUT_SHEET_ID_HERE",
+  "sheetId": "12cN1zrgYhjqGfPI6PoR3wMHF4teb5x-6k8NEIWxScaU",
   "sheetName": "roksana_shop",
   "chunkRows": 1500,
   "columns": [

@@ -10,6 +10,10 @@
     "service:gorgany_alpha": "node services/run-service.mjs services/gorgany_alpha.json",
     "service:lekos": "node services/run-service.mjs services/lekos.json",
     "service:og_shop": "node services/run-service.mjs services/og_shop.json",
+    "service:roksana_shop": "node services/run-service.mjs services/roksana_shop.json",
+    "service:rabona": "node services/run-normalize-sheet.mjs services/rabona.json",
+    "normalize:xls": "node scripts/normalize-xls.mjs",
+    "normalize:sheet": "node scripts/normalize-sheet.mjs",
     "export:feeds": "node scripts/export-feeds.mjs"
   },
   "private": true,
