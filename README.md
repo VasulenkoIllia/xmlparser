@@ -5,7 +5,7 @@
 - Оновлення запускаються контейнером `feeds-runner`, а розклад керує `ofelia` (cron усередині Docker).
 
 ## Структура
-- `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда.
+- `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда (з перевіркою PID і TTL).
 - `services/run-normalize-sheet.mjs` — нормалізує лист у окрему таблицю, оновлює meta-аркуш, має лок-файл.
 - `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги існуючих фідів.
 - `services/niala.json` / `services/atlantmarket.json` / `services/markshop.json` / `services/powerplay.json` / `services/roksana_shop.json` — додаткові конфіги фідів.
@@ -14,7 +14,7 @@
 - `services/og_shop.json` — фід og-shop → sheet `1naPf2qk72InlwiR3mt_1ZOZeBKjRa1iZbVVz8lefiTI`, колонки `name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, param:Размер, vendor`.
 - `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05 Europe/Kyiv, 6-польовий cron `0 5 0 * * *`).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
-- `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `GORGANY_ALPHA_SHEET_ID` для нового фіда.
+- `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `LOCK_TTL_HOURS` (дефолт 12).
 
 ## Колонки й трансформації
 Типи колонок у конфіг-JSON:
@@ -46,7 +46,7 @@ Meta-аркуш `<sheetName>_meta`:
 
 Ретраї та безпека:
 - Всі мережеві виклики (fetch, get/batchUpdate, clear, write chunks, meta) з ретраями (дефолт 3, 2s * 2^(n-1)).
-- Лок-файл у `/tmp/feed-lock-<name>.lock` не дає двом запускати один фід одночасно.
+- Лок-файл у `/tmp/feed-lock-<name>.lock` не дає двом запускати один фід одночасно; містить PID і timestamp, stale-lock видаляється після `LOCK_TTL_HOURS`.
 - TZ задається через `TZ` (compose ставить Europe/Kyiv); дата/час у meta формуються з урахуванням TZ.
 
 ## Запуск у Docker
@@ -58,13 +58,13 @@ Meta-аркуш `<sheetName>_meta`:
    - clsport — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - gorgany_alpha — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - lekos — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-- og_shop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-- niala — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-- atlantmarket — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-- markshop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-- powerplay — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-- вебхуки сповіщень: lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`.
-- rabona — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - og_shop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - niala — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - atlantmarket — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - markshop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - powerplay — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - rabona — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+   - вебхуки сповіщень (up/down ping): lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`, roksana_shop `m3gaKHNfDc`, rabona `67vFtA8We9`, niala `pStJOiLW3w`, atlantmarket `DFNM6zIb35`, markshop `wibOIypj0X`, powerplay `3hBBC8fLUc`.
 
 ## Додавання нового фіда
 1. Скопіюй існуючий конфіг у `services/<new>.json`.
