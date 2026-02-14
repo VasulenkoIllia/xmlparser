@@ -1,0 +1,17 @@
+{
+  "name": "markshop",
+  "feedUrl": "https://markshop.kiev.ua/plugins/mark/feed/white.xml",
+  "sheetId": "1gy05PvYbVeOelOBMOzTzHhALoD3eJWuH5N5OuSBufqE",
+  "sheetName": "markshop",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
+    { "type": "field", "header": "quantity_in_stock", "from": ["quantity_in_stock"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "field", "header": "name_ua", "from": ["name_ua"] },
+    { "type": "param", "header": "param:Цвет", "names": ["Цвет"] },
+    { "type": "param", "header": "param:Размер", "names": ["Размер"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

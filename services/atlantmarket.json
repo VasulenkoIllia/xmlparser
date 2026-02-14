@@ -1,0 +1,16 @@
+{
+  "name": "atlantmarket",
+  "feedUrl": "https://atlantmarket.com.ua/price1/prom/atlantmarketprom(false).xml",
+  "sheetId": "1CO2EDAOix0d_CfTww4anBZWhSAm2JjyLv_o4rbqT8H8",
+  "sheetName": "atlantmarket",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "attribute", "header": "available", "from": ["available"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "field", "header": "barcode", "from": ["barcode"] },
+    { "type": "param", "header": "param:Розмір", "names": ["Розмір"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

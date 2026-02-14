@@ -1,0 +1,17 @@
+{
+  "name": "powerplay",
+  "feedUrl": "https://powerplay.com.ua/products_feed.xml?hash_tag=d8922cb3e9b587ad3a1f66f839f98a77&sales_notes=&product_ids=&label_ids=&exclude_fields=&html_description=1&yandex_cpa=&process_presence_sure=&languages=uk%2Cru&extra_fields=quantityInStock%2Ckeywords&group_ids=38152639%2C38153303%2C38154404%2C38154470%2C38154549%2C38157952%2C38158726%2C38159256%2C38159383%2C101671139%2C109345932&nested_group_ids=38152639%2C38153303%2C38154404%2C38154549%2C38157952%2C38158726%2C38159383%2C101671139",
+  "sheetId": "1MeimA_UeU-nuXBT3AopsKheb6jWUM22-KZQ8TPKSl1o",
+  "sheetName": "powerplay",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
+    { "type": "field", "header": "quantity_in_stock", "from": ["quantity_in_stock"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "param", "header": "param:Размер", "names": ["Размер"] },
+    { "type": "param", "header": "param:Цвет", "names": ["Цвет"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

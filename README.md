@@ -1,13 +1,14 @@
 ## Overview
 - Проєкт тягне YML/EML фіди, трансформує у потрібні колонки і пише в окремі Google Sheets через Service Account.
 - Є окремий раннер для нормалізації листа з однієї таблиці у іншу (rabona), з meta-аркушем як у фідів.
-- Є п’ять сервісних профілів (lispo, clsport, gorgany_alpha, lekos, og_shop); легко додати нові через JSON-конфіг.
+- Є десять сервісних профілів (lispo, clsport, gorgany_alpha, lekos, og_shop, roksana_shop, niala, atlantmarket, markshop, powerplay); легко додати нові через JSON-конфіг.
 - Оновлення запускаються контейнером `feeds-runner`, а розклад керує `ofelia` (cron усередині Docker).
 
 ## Структура
 - `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда.
 - `services/run-normalize-sheet.mjs` — нормалізує лист у окрему таблицю, оновлює meta-аркуш, має лок-файл.
 - `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги існуючих фідів.
+- `services/niala.json` / `services/atlantmarket.json` / `services/markshop.json` / `services/powerplay.json` / `services/roksana_shop.json` — додаткові конфіги фідів.
 - `services/lekos.json` — фід lekos → sheet `1yILFZTbFI-8adJz_0_ukL8fz4eQb_lt5KwWAT2zY0bE`, колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
 - `services/rabona.json` — нормалізація Google Sheets (source → target).
 - `services/og_shop.json` — фід og-shop → sheet `1naPf2qk72InlwiR3mt_1ZOZeBKjRa1iZbVVz8lefiTI`, колонки `name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, param:Размер, vendor`.
@@ -34,6 +35,10 @@ Post-обробка (опційна в колонці):
 - gorgany_alpha: фід `https://gorgany.eu/xmlxls/all_xml_alpha.xml`; колонки `id, name, price, rrc, SIZE, Spec, Дроп`, де `Дроп = D*(1-F/100)`.
 - lekos: фід `https://lekos.com.ua/partner/`; колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
 - og_shop: фід `https://og-shop.in.ua/xml/out.php`; колонки `name, price, Дроп=B*0,9, vendorCode, quantity_in_stock, param(Размер), vendor`.
+- niala: фід `https://niala.com.ua/xml/ac/niala-3205010.xml`; колонки `name, price, vendorCode, quantity_in_stock, picture, param:Размер, param:Цвет, vendor`.
+- atlantmarket: фід `https://atlantmarket.com.ua/price1/prom/atlantmarketprom(false).xml`; колонки `name, price, available(@_available), picture, barcode, param:Розмір, vendor`.
+- markshop: фід `https://markshop.kiev.ua/plugins/mark/feed/white.xml`; колонки `price, vendorCode, quantity_in_stock, picture, name_ua, param:Цвет, param:Размер, vendor`.
+- powerplay: фід `https://powerplay.com.ua/products_feed.xml?...`; колонки `name, price, vendorCode, quantity_in_stock, picture, param:Размер, param:Цвет, vendor`.
 
 Meta-аркуш `<sheetName>_meta`:
 - Пише `last_update_date`, `last_update_time`, `rows`.
@@ -54,6 +59,10 @@ Meta-аркуш `<sheetName>_meta`:
    - gorgany_alpha — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
    - lekos — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
 - og_shop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+- niala — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+- atlantmarket — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+- markshop — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
+- powerplay — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
 - вебхуки сповіщень: lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`.
 - rabona — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
 

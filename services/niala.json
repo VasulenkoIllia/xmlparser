@@ -1,0 +1,17 @@
+{
+  "name": "niala",
+  "feedUrl": "https://niala.com.ua/xml/ac/niala-3205010.xml",
+  "sheetId": "1w1urSZDCtS4S0Fn7nP9noLD7mpSlF_fSmM94qd7HABk",
+  "sheetName": "niala",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
+    { "type": "field", "header": "quantity_in_stock", "from": ["quantity_in_stock"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "param", "header": "param:Размер", "names": ["Размер"] },
+    { "type": "param", "header": "param:Цвет", "names": ["Цвет"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

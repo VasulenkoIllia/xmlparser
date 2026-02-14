@@ -6,6 +6,8 @@ import { google } from 'googleapis';
 import { normalizeRows } from '../scripts/normalize-core.mjs';
 
 const TZ = process.env.TZ || 'UTC';
+const LOCK_TTL_HOURS = Number(process.env.LOCK_TTL_HOURS || 12);
+const LOCK_TTL_MS = LOCK_TTL_HOURS * 60 * 60 * 1000;
 
 function resolveEnv(value) {
   if (typeof value === 'string' && /^\$[A-Z0-9_]+$/.test(value)) {
@@ -65,6 +67,39 @@ function colLetter(n) {
     n = Math.floor(n / 26);
   }
   return s;
+}
+
+function isPidAlive(pid) {
+  if (!pid || Number.isNaN(pid)) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function parseLockFile(content) {
+  if (!content) return { pid: null, ts: null };
+  const parts = String(content).trim().split(/\s+/);
+  const pid = Number(parts[0]);
+  const ts = parts[1] ? Number(parts[1]) : null;
+  return {
+    pid: Number.isFinite(pid) ? pid : null,
+    ts: Number.isFinite(ts) ? ts : null,
+  };
+}
+
+function isStaleLock(lockPath, content) {
+  const now = Date.now();
+  const { ts } = parseLockFile(content);
+  if (ts && now - ts > LOCK_TTL_MS) return true;
+  try {
+    const stat = fs.statSync(lockPath);
+    return now - stat.mtimeMs > LOCK_TTL_MS;
+  } catch (err) {
+    return false;
+  }
 }
 
 async function getSpreadsheet(sheets, spreadsheetId, retries, delayMs) {
@@ -275,11 +310,39 @@ async function main() {
     lockPath = path.join(os.tmpdir(), lockName);
     try {
       const fd = fs.openSync(lockPath, 'wx');
-      fs.writeSync(fd, String(process.pid));
+      fs.writeSync(fd, `${process.pid} ${Date.now()}`);
       fs.closeSync(fd);
     } catch (e) {
-      console.error(`Another run is in progress for ${cfg.name || cfg.targetSheetId} (lock ${lockPath}). Exit.`);
-      process.exit(1);
+      let existing = null;
+      try {
+        existing = fs.readFileSync(lockPath, 'utf8');
+      } catch (readErr) {
+        existing = null;
+      }
+
+      const { pid } = parseLockFile(existing);
+      if (pid && isPidAlive(pid)) {
+        console.error(
+          `Another run is in progress for ${cfg.name || cfg.targetSheetId} (pid ${pid}, lock ${lockPath}). Exit.`
+        );
+        process.exit(1);
+      }
+
+      if (isStaleLock(lockPath, existing)) {
+        try {
+          fs.unlinkSync(lockPath);
+        } catch (unlinkErr) {
+          console.error(`Lock appears stale but failed to remove ${lockPath}: ${unlinkErr.message}`);
+          process.exit(1);
+        }
+
+        const fd = fs.openSync(lockPath, 'wx');
+        fs.writeSync(fd, `${process.pid} ${Date.now()}`);
+        fs.closeSync(fd);
+      } else {
+        console.error(`Another run is in progress for ${cfg.name || cfg.targetSheetId} (lock ${lockPath}). Exit.`);
+        process.exit(1);
+      }
     }
 
     const rawKey = process.env.GOOGLE_PRIVATE_KEY || '';
