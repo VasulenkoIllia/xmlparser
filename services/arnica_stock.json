@@ -1,0 +1,35 @@
+{
+  "name": "arnica_stock",
+  "feedUrl": "https://clients.arnica.com.ua/client/downloads/stock/arnica_stock.xml",
+  "sheetId": "1keFEV7sPGPb5pIzEzOY9ytD9CO7X7u-ET4Y2Hx2494s",
+  "sheetName": "arnica_stock",
+  "chunkRows": 1500,
+  "auth": {
+    "type": "form",
+    "loginUrl": "https://clients.arnica.com.ua/login",
+    "usernameField": "email",
+    "passwordField": "password",
+    "tokenField": "_token",
+    "username": "$ARNICA_LOGIN",
+    "password": "$ARNICA_PASSWORD",
+    "extraFields": {
+      "remember": "on"
+    }
+  },
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "quantity", "from": ["quantity"] },
+    { "type": "field", "header": "color", "from": ["color"] },
+    { "type": "field", "header": "barcode", "from": ["barcode"] },
+    { "type": "field", "header": "contract", "from": ["prices.contract"] },
+    { "type": "field", "header": "wholesale", "from": ["prices.wholesale"] },
+    { "type": "field", "header": "semi_wholesale", "from": ["prices.semi_wholesale"] },
+    { "type": "field", "header": "retail", "from": ["prices.retail"] },
+    { "type": "field", "header": "retail_discount", "from": ["prices.retail_discount"] },
+    { "type": "field", "header": "retail_discount_price", "from": ["prices.retail_discount_price"] },
+    { "type": "field", "header": "size", "from": ["size"] },
+    { "type": "field", "header": "type", "from": ["type"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] },
+    { "type": "field", "header": "vendor_code", "from": ["vendor_code"] }
+  ]
+}

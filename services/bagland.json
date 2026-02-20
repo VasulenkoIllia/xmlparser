@@ -1,0 +1,16 @@
+{
+  "name": "bagland",
+  "feedUrl": "https://www.baglandopt.com.ua/content/export/ed673ce6583a077e89c7f1ee8ed7ea02.xml",
+  "sheetId": "1O4crC2SiQWazQkgY8fbkayoc67EniB3QkkOlIb9D1JU",
+  "sheetName": "bagland",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
+    { "type": "attribute", "header": "available", "from": ["available"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "param", "header": "param:Цвет", "names": ["Цвет", "Колір", "Color"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

@@ -14,7 +14,7 @@ services:
     labels:
       - "traefik.enable=false"
       - "ofelia.enabled=true"
-      # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05–00:15
+      # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05–00:19
       - "ofelia.job-exec.lispo.schedule=0 5 0 * * *"
       - "ofelia.job-exec.lispo.command=sh -lc 'node services/run-service.mjs services/lispo.json; code=$$?; if [ $$code -eq 0 ]; then wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw?status=down&msg=FAIL&ping=\" >/dev/null; fi; exit $$code'"
       - "ofelia.job-exec.clsport.schedule=0 6 0 * * *"
@@ -37,6 +37,14 @@ services:
       - "ofelia.job-exec.powerplay.command=sh -lc 'node services/run-service.mjs services/powerplay.json; code=$$?; if [ $$code -eq 0 ]; then wget -qO- \"https://status.workflo.space/api/push/3hBBC8fLUc?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"https://status.workflo.space/api/push/3hBBC8fLUc?status=down&msg=FAIL&ping=\" >/dev/null; fi; exit $$code'"
       - "ofelia.job-exec.rabona.schedule=0 15 0 * * *"
       - "ofelia.job-exec.rabona.command=sh -lc 'node services/run-normalize-sheet.mjs services/rabona.json; code=$$?; if [ $$code -eq 0 ]; then wget -qO- \"https://status.workflo.space/api/push/67vFtA8We9?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"https://status.workflo.space/api/push/67vFtA8We9?status=down&msg=FAIL&ping=\" >/dev/null; fi; exit $$code'"
+      - "ofelia.job-exec.tonn7.schedule=0 16 0 * * *"
+      - "ofelia.job-exec.tonn7.command=sh -lc 'node services/run-service.mjs services/7tonn.json; code=$$?; if [ -n \"$$STATUS_PING_7TONN\" ]; then if [ $$code -eq 0 ]; then wget -qO- \"$$STATUS_PING_7TONN?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"$$STATUS_PING_7TONN?status=down&msg=FAIL&ping=\" >/dev/null; fi; fi; exit $$code'"
+      - "ofelia.job-exec.bagland.schedule=0 17 0 * * *"
+      - "ofelia.job-exec.bagland.command=sh -lc 'node services/run-service.mjs services/bagland.json; code=$$?; if [ -n \"$$STATUS_PING_BAGLAND\" ]; then if [ $$code -eq 0 ]; then wget -qO- \"$$STATUS_PING_BAGLAND?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"$$STATUS_PING_BAGLAND?status=down&msg=FAIL&ping=\" >/dev/null; fi; fi; exit $$code'"
+      - "ofelia.job-exec.uabest.schedule=0 18 0 * * *"
+      - "ofelia.job-exec.uabest.command=sh -lc 'node services/run-service.mjs services/uabest.json; code=$$?; if [ -n \"$$STATUS_PING_UABEST\" ]; then if [ $$code -eq 0 ]; then wget -qO- \"$$STATUS_PING_UABEST?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"$$STATUS_PING_UABEST?status=down&msg=FAIL&ping=\" >/dev/null; fi; fi; exit $$code'"
+      - "ofelia.job-exec.arnica_stock.schedule=0 19 0 * * *"
+      - "ofelia.job-exec.arnica_stock.command=sh -lc 'node services/run-service.mjs services/arnica_stock.json; code=$$?; if [ -n \"$$STATUS_PING_ARNICA_STOCK\" ]; then if [ $$code -eq 0 ]; then wget -qO- \"$$STATUS_PING_ARNICA_STOCK?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"$$STATUS_PING_ARNICA_STOCK?status=down&msg=FAIL&ping=\" >/dev/null; fi; fi; exit $$code'"
 
   ofelia:
     image: mcuadros/ofelia:0.3.13

@@ -5,6 +5,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { google } from 'googleapis';
 import os from 'os';
 import path from 'path';
+import { URLSearchParams } from 'url';
 
 const TZ = process.env.TZ || 'UTC';
 const LOCK_TTL_HOURS = Number(process.env.LOCK_TTL_HOURS || 12);
@@ -59,8 +60,25 @@ function arrayify(val) {
   return [val];
 }
 
+function getByPath(obj, pathStr) {
+  if (!pathStr || typeof pathStr !== 'string') return undefined;
+  const parts = pathStr.split('.');
+  let cur = obj;
+  for (const part of parts) {
+    if (cur === undefined || cur === null) return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+
 function pickField(obj, keys) {
-  for (const k of keys) if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+  for (const k of keys) {
+    let val = obj[k];
+    if (val === undefined && typeof k === 'string' && k.includes('.')) {
+      val = getByPath(obj, k);
+    }
+    if (val !== undefined && val !== null) return val;
+  }
   return '';
 }
 
@@ -70,6 +88,83 @@ function pickParam(obj, names) {
     for (const p of params) if (p['@_name'] === name) return p['#text'] || '';
   }
   return '';
+}
+
+function mergeCookies(cookieJar, setCookieHeaders) {
+  const lines = arrayify(setCookieHeaders);
+  for (const line of lines) {
+    if (!line || typeof line !== 'string') continue;
+    const firstPart = line.split(';', 1)[0];
+    const idx = firstPart.indexOf('=');
+    if (idx <= 0) continue;
+    const key = firstPart.slice(0, idx).trim();
+    const value = firstPart.slice(idx + 1).trim();
+    if (key) cookieJar.set(key, value);
+  }
+}
+
+function cookieHeader(cookieJar) {
+  return Array.from(cookieJar.entries())
+    .map(([k, v]) => `${k}=${v}`)
+    .join('; ');
+}
+
+function extractCsrfToken(html, tokenField = '_token') {
+  if (!html || typeof html !== 'string') return null;
+  const inputRegex = new RegExp(`name=["']${tokenField}["'][^>]*value=["']([^"']+)["']`, 'i');
+  const inputMatch = html.match(inputRegex);
+  if (inputMatch?.[1]) return inputMatch[1];
+
+  const metaMatch = html.match(/<meta[^>]+name=["']csrf-token["'][^>]+content=["']([^"']+)["']/i);
+  if (metaMatch?.[1]) return metaMatch[1];
+  return null;
+}
+
+async function buildAuthCookieHeader(authCfg) {
+  if (!authCfg) return '';
+  if (authCfg.type !== 'form') throw new Error(`Unsupported auth type: ${authCfg.type}`);
+  if (!authCfg.loginUrl) throw new Error('Auth config missing loginUrl');
+
+  const usernameField = authCfg.usernameField || 'email';
+  const passwordField = authCfg.passwordField || 'password';
+  const tokenField = authCfg.tokenField || '_token';
+  if (!authCfg.username || !authCfg.password) {
+    throw new Error('Auth config missing username/password (or related env vars)');
+  }
+
+  const jar = new Map();
+
+  const loginPage = await axios.get(authCfg.loginUrl, {
+    timeout: 60_000,
+    validateStatus: (s) => s >= 200 && s < 400,
+  });
+  mergeCookies(jar, loginPage.headers?.['set-cookie']);
+  const token = extractCsrfToken(loginPage.data, tokenField);
+
+  const formData = new URLSearchParams();
+  if (token) formData.set(tokenField, token);
+  formData.set(usernameField, authCfg.username);
+  formData.set(passwordField, authCfg.password);
+  const extraFields = authCfg.extraFields || {};
+  for (const [k, v] of Object.entries(extraFields)) formData.set(k, String(v));
+
+  const loginHeaders = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  const initialCookie = cookieHeader(jar);
+  if (initialCookie) loginHeaders.Cookie = initialCookie;
+
+  const loginResp = await axios.post(authCfg.loginUrl, formData.toString(), {
+    timeout: 60_000,
+    headers: loginHeaders,
+    maxRedirects: 0,
+    validateStatus: (s) => (s >= 200 && s < 400) || s === 302,
+  });
+  mergeCookies(jar, loginResp.headers?.['set-cookie']);
+
+  const finalCookie = cookieHeader(jar);
+  if (!finalCookie) throw new Error('Auth failed: no cookies after login');
+  return finalCookie;
 }
 
 function normalizeCellValue(val) {
@@ -202,8 +297,20 @@ function extractOffers(parsed) {
   offers = parsed?.yml_catalog?.shop?.offers?.offer;
   if (offers) return offers;
 
+  // XML variant: <xml_catalog><offers><offer>
+  offers = parsed?.xml_catalog?.offers?.offer;
+  if (offers) return offers;
+
+  // XML variant: <xml_catalog><shop><offers><offer>
+  offers = parsed?.xml_catalog?.shop?.offers?.offer;
+  if (offers) return offers;
+
   // Sometimes <shop><offers><offer> without yml_catalog
   offers = parsed?.shop?.offers?.offer;
+  if (offers) return offers;
+
+  // Some feeds use <catalog><offers><offer>
+  offers = parsed?.catalog?.offers?.offer;
   if (offers) return offers;
 
   // Simple products list: <products><product>
@@ -213,8 +320,20 @@ function extractOffers(parsed) {
   return null;
 }
 
-async function fetchOffers(feedUrl) {
-  const xml = (await axios.get(feedUrl, { timeout: 60_000 })).data;
+async function fetchOffers(cfg) {
+  const headers = {};
+  if (cfg.auth) {
+    const cookie = await buildAuthCookieHeader(cfg.auth);
+    if (cookie) headers.Cookie = cookie;
+  }
+
+  const xml = (
+    await axios.get(cfg.feedUrl, {
+      timeout: 60_000,
+      headers,
+      responseType: 'text',
+    })
+  ).data;
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
   const feed = parser.parse(xml);
   const offers = extractOffers(feed);
@@ -439,14 +558,16 @@ async function main() {
       }
 
       const { pid } = parseLockFile(existing);
-      if (pid && isPidAlive(pid)) {
+      const alive = pid ? isPidAlive(pid) : false;
+      if (pid && alive) {
         console.error(
           `Another run is in progress for ${cfg.name || cfg.sheetName} (pid ${pid}, lock ${lockPath}). Exit.`
         );
         process.exit(1);
       }
 
-      if (isStaleLock(lockPath, existing)) {
+      // If PID from lock is dead, reclaim lock immediately (no need to wait TTL).
+      if ((pid && !alive) || isStaleLock(lockPath, existing)) {
         try {
           fs.unlinkSync(lockPath);
         } catch (unlinkErr) {
@@ -479,7 +600,7 @@ async function main() {
 
   const offers = await withRetry(
     'fetch feed',
-    () => fetchOffers(cfg.feedUrl),
+    () => fetchOffers(cfg),
     cfg.writeRetries,
     cfg.retryDelayMs
   );

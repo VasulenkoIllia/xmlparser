@@ -1,0 +1,17 @@
+{
+  "name": "7tonn",
+  "feedUrl": "https://7tonn.com.ua/index.php?route=account/product_export/download&filter_quantity=1&export_format=xml",
+  "sheetId": "1Cqqr0OoM5DQNrFBFZAeiTHYYkWITTrwZGunGTzqmZJA",
+  "sheetName": "7tonn",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "quantity", "from": ["quantity"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "field", "header": "drop_price", "from": ["drop_price"] },
+    { "type": "field", "header": "model", "from": ["model"] },
+    { "type": "param", "header": "param:Розмір", "names": ["Розмір", "Размер"] },
+    { "type": "param", "header": "param:Колір", "names": ["Колір", "Цвет", "Color"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

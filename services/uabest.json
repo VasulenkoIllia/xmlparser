@@ -1,0 +1,15 @@
+{
+  "name": "uabest",
+  "feedUrl": "https://uabest.com.ua/content/export/f3c3a6750fc5783821bd896ea6f5dba3.xml",
+  "sheetId": "1JRGQ1skOEC5Y7FQSfzlG6RtKyYzlQC5eSYd2QVtNByM",
+  "sheetName": "uabest",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"] },
+    { "type": "field", "header": "quantity_in_stock", "from": ["quantity_in_stock"] },
+    { "type": "picture_image", "header": "picture" },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}
