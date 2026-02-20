@@ -6,9 +6,9 @@
   "chunkRows": 1500,
   "columns": [
     { "type": "field", "header": "name", "from": ["name"] },
-    { "type": "field", "header": "quantity", "from": ["quantity"] },
+    { "type": "field", "header": "quantity", "from": ["quantity"], "asNumber": true },
     { "type": "picture_image", "header": "picture" },
-    { "type": "field", "header": "drop_price", "from": ["drop_price"] },
+    { "type": "field", "header": "drop_price", "from": ["drop_price"], "asNumber": true },
     { "type": "field", "header": "model", "from": ["model"] },
     { "type": "param", "header": "param:Розмір", "names": ["Розмір", "Размер"] },
     { "type": "param", "header": "param:Колір", "names": ["Колір", "Цвет", "Color"] },

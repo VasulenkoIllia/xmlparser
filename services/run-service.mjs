@@ -90,6 +90,87 @@ function pickParam(obj, names) {
   return '';
 }
 
+function toNumberIfPossible(val) {
+  if (typeof val === 'number') return Number.isFinite(val) ? val : '';
+  if (typeof val !== 'string') return val;
+  const trimmed = val.trim();
+  if (!trimmed) return '';
+
+  // Support both "1234.56" and "1234,56".
+  const normalized = trimmed.replace(/\s+/g, '').replace(',', '.');
+  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return val;
+
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : val;
+}
+
+function isLikelyNumericColumn(col) {
+  if (col?.asText) return false;
+  if (col?.asNumber) return true;
+
+  const positiveHints = [
+    'price',
+    'drop',
+    'discount',
+    'quantity',
+    'stock',
+    'rrc',
+    'retail',
+    'wholesale',
+    'contract',
+    'semi_wholesale',
+    'amount',
+    'sum',
+    'cost',
+    'цена',
+    'ціна',
+    'дроп',
+    'зниж',
+    'скид',
+    'кільк',
+    'колич',
+    'залишк',
+    'остат',
+  ];
+  const negativeHints = [
+    'vendorcode',
+    'vendor_code',
+    'barcode',
+    'uuid',
+    'categoryid',
+    'currencyid',
+    'id',
+    'code',
+    'sku',
+    'model',
+    'url',
+    'name',
+    'picture',
+    'color',
+    'size',
+    'розмір',
+    'размер',
+    'колір',
+    'цвет',
+  ];
+
+  const candidates = [];
+  if (col?.header) candidates.push(String(col.header).toLowerCase());
+  if (Array.isArray(col?.from)) {
+    for (const f of col.from) candidates.push(String(f).toLowerCase());
+  }
+  if (col?.key) candidates.push(String(col.key).toLowerCase());
+
+  const joined = candidates.join(' ');
+  if (!joined) return false;
+
+  const hasPositive = positiveHints.some((h) => joined.includes(h));
+  if (!hasPositive) return false;
+
+  const hasNegative = negativeHints.some((h) => joined.includes(h));
+  return !hasNegative;
+}
+
 function mergeCookies(cookieJar, setCookieHeaders) {
   const lines = arrayify(setCookieHeaders);
   for (const line of lines) {
@@ -346,6 +427,7 @@ async function fetchOffers(cfg) {
 
 function buildRows(offers, cfg) {
   const headers = cfg.columns.map((c) => c.header);
+  const numericFlags = cfg.columns.map((c) => isLikelyNumericColumn(c));
   const rows = [headers];
 
   offers.forEach((o) => {
@@ -353,7 +435,7 @@ function buildRows(offers, cfg) {
     const firstPic = pics[0] || '';
     const rowNumber = rows.length + 1; // sheet row number (header = 1)
 
-    const row = cfg.columns.map((c) => {
+    const row = cfg.columns.map((c, colIdx) => {
       let val = '';
       switch (c.type) {
         case 'field':
@@ -382,7 +464,8 @@ function buildRows(offers, cfg) {
 
       val = normalizeCellValue(val);
 
-      if (val !== undefined && val !== null && val !== '') {
+      const needsStringTransforms = c.insideParensOnly || c.stripParens || c.cleanContains;
+      if (needsStringTransforms && val !== undefined && val !== null && val !== '') {
         let valStr = String(val);
 
         if (c.insideParensOnly) {
@@ -402,6 +485,10 @@ function buildRows(offers, cfg) {
         }
 
         val = valStr;
+      }
+
+      if (numericFlags[colIdx]) {
+        val = toNumberIfPossible(val);
       }
 
       return val;
@@ -460,6 +547,39 @@ async function writeSheet(sheets, spreadsheetId, sheetName, rows, chunkRows, ret
     );
     startRow = endRow + 1;
   }
+}
+
+async function applyNumericColumnFormats(sheets, spreadsheetId, sheetObj, columns, dataRowCount, retries, delayMs) {
+  const sheetId = sheetObj?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) return;
+
+  const numericCols = [];
+  for (let i = 0; i < columns.length; i += 1) {
+    if (isLikelyNumericColumn(columns[i])) numericCols.push(i);
+  }
+  if (!numericCols.length) return;
+
+  const endRowIndex = Math.max(2, dataRowCount + 1); // 1-based row -> 0-based exclusive end
+  const requests = numericCols.map((idx) => ({
+    repeatCell: {
+      range: {
+        sheetId,
+        startRowIndex: 1, // skip header
+        endRowIndex,
+        startColumnIndex: idx,
+        endColumnIndex: idx + 1,
+      },
+      cell: { userEnteredFormat: { numberFormat: { type: 'NUMBER' } } },
+      fields: 'userEnteredFormat.numberFormat',
+    },
+  }));
+
+  await withRetry(
+    'numeric formatting',
+    () => sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } }),
+    retries,
+    delayMs
+  );
 }
 
 async function upsertMeta(sheets, cfg, dateStr, timeStr, rowCount) {
@@ -609,7 +729,16 @@ async function main() {
   const sheetProps = await ensureSheet(sheets, cfg.sheetId, cfg.sheetName, cfg.writeRetries, cfg.retryDelayMs);
   await resizeSheet(sheets, cfg.sheetId, sheetProps, rows.length + 10, rows[0].length + 5, cfg.writeRetries, cfg.retryDelayMs);
   await clearSheet(sheets, cfg.sheetId, cfg.sheetName, cfg.writeRetries, cfg.retryDelayMs);
-    await writeSheet(sheets, cfg.sheetId, cfg.sheetName, rows, cfg.chunkRows, cfg.writeRetries, cfg.retryDelayMs);
+  await writeSheet(sheets, cfg.sheetId, cfg.sheetName, rows, cfg.chunkRows, cfg.writeRetries, cfg.retryDelayMs);
+  await applyNumericColumnFormats(
+    sheets,
+    cfg.sheetId,
+    sheetProps,
+    cfg.columns,
+    rows.length - 1,
+    cfg.writeRetries,
+    cfg.retryDelayMs
+  );
 
     const now = new Date();
     const dateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(now); // yyyy-mm-dd
