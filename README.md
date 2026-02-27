@@ -15,7 +15,7 @@
 - `services/7tonn.json` / `services/bagland.json` / `services/uabest.json` / `services/arnica_stock.json` — нові конфіги фідів.
 - `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05–00:19 Europe/Kyiv, 6-польовий cron).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
-- `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `LOCK_TTL_HOURS` (дефолт 12). Для `arnica_stock` додатково: `ARNICA_LOGIN`, `ARNICA_PASSWORD`. Для моніторингу нових фідів: `STATUS_PING_7TONN`, `STATUS_PING_BAGLAND`, `STATUS_PING_UABEST`, `STATUS_PING_ARNICA_STOCK`.
+- `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `LOCK_TTL_HOURS` (дефолт 12). Для `arnica_stock` додатково: `ARNICA_LOGIN`, `ARNICA_PASSWORD`.
 
 ## Колонки й трансформації
 Типи колонок у конфіг-JSON:
@@ -77,7 +77,7 @@ Meta-аркуш `<sheetName>_meta`:
    - bagland — щодня 00:17 Europe/Kyiv (cron: `0 17 0 * * *`)
    - uabest — щодня 00:18 Europe/Kyiv (cron: `0 18 0 * * *`)
    - arnica_stock — щодня 00:19 Europe/Kyiv (cron: `0 19 0 * * *`)
-   - вебхуки сповіщень (up/down ping): lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`, roksana_shop `m3gaKHNfDc`, rabona `67vFtA8We9`, niala `pStJOiLW3w`, atlantmarket `DFNM6zIb35`, markshop `wibOIypj0X`, powerplay `3hBBC8fLUc`; для 7tonn/bagland/uabest/arnica_stock використовуються env-змінні `STATUS_PING_7TONN`, `STATUS_PING_BAGLAND`, `STATUS_PING_UABEST`, `STATUS_PING_ARNICA_STOCK`.
+   - вебхуки сповіщень (up/down ping): lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`, roksana_shop `m3gaKHNfDc`, rabona `67vFtA8We9`, niala `pStJOiLW3w`, atlantmarket `DFNM6zIb35`, markshop `wibOIypj0X`, powerplay `3hBBC8fLUc`, 7tonn `4XhajZ04yI`, bagland `rDZez4XvX3`, uabest `mjWyQvQwkx`, arnica_stock `UhRMzsSLjo`.
 
 ## Додавання нового фіда
 1. Скопіюй існуючий конфіг у `services/<new>.json`.
