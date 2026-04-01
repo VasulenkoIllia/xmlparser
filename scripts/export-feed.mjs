@@ -14,11 +14,14 @@ for (let i = 0; i < argv.length; i += 1) {
 }
 
 const feedUrl = args.get('url');
+const feedFile = args.get('file');
 const feedName = args.get('name');
 const outDir = args.get('out') || 'exports';
 
-if (!feedUrl || !feedName) {
-  console.error('Usage: node scripts/export-feed.mjs --url <feedUrl> --name <fileBaseName> [--out <dir>]');
+if ((!feedUrl && !feedFile) || (feedUrl && feedFile) || !feedName) {
+  console.error(
+    'Usage: node scripts/export-feed.mjs (--url <feedUrl> | --file <xmlFilePath>) --name <fileBaseName> [--out <dir>]'
+  );
   process.exit(1);
 }
 
@@ -47,6 +50,9 @@ function extractOffers(parsed) {
   if (offers) return offers;
 
   offers = parsed?.products?.product;
+  if (offers) return offers;
+
+  offers = parsed?.rss?.channel?.item;
   if (offers) return offers;
 
   return null;
@@ -143,9 +149,12 @@ function buildColumnList(rows) {
   return [...ordered, ...rest];
 }
 
-async function fetchOffers(url) {
-  const response = await axios.get(url, { timeout: 120_000, responseType: 'text' });
-  const parsed = parser.parse(response.data);
+async function fetchOffers({ url, file }) {
+  const xml = file
+    ? fs.readFileSync(path.resolve(file), 'utf8')
+    : (await axios.get(url, { timeout: 120_000, responseType: 'text' })).data;
+
+  const parsed = parser.parse(xml);
   const offers = extractOffers(parsed);
   if (!offers) {
     const roots = Object.keys(parsed || {});
@@ -173,8 +182,9 @@ function writeExcel(name, rows, dir) {
 
 async function main() {
   try {
-    console.log(`→ Завантажую ${feedName} (${feedUrl})`);
-    const offers = await fetchOffers(feedUrl);
+    const sourceLabel = feedFile ? path.resolve(feedFile) : feedUrl;
+    console.log(`→ Обробляю ${feedName} (${sourceLabel})`);
+    const offers = await fetchOffers({ url: feedUrl, file: feedFile });
     const flat = offers.map(flattenOffer);
     const outPath = writeExcel(feedName, flat, outDir);
     console.log(`✔ ${feedName}: ${offers.length} offers, файл: ${outPath}`);

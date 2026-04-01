@@ -1,7 +1,7 @@
 ## Overview
 - Проєкт тягне YML/EML фіди, трансформує у потрібні колонки і пише в окремі Google Sheets через Service Account.
 - Є окремий раннер для нормалізації листа з однієї таблиці у іншу (rabona), з meta-аркушем як у фідів.
-- Є 14 сервісних профілів (lispo, clsport, gorgany_alpha, lekos, og_shop, roksana_shop, niala, atlantmarket, markshop, powerplay, 7tonn, bagland, uabest, arnica_stock); легко додати нові через JSON-конфіг.
+- Є 16 сервісних профілів (lispo, clsport, gorgany_alpha, lekos, og_shop, roksana_shop, niala, atlantmarket, markshop, powerplay, 7tonn, bagland, uabest, arnica_stock, ultrasport, soccerlife); легко додати нові через JSON-конфіг.
 - Оновлення запускаються контейнером `feeds-runner`, а розклад керує `ofelia` (cron усередині Docker).
 
 ## Структура
@@ -12,8 +12,8 @@
 - `services/lekos.json` — фід lekos → sheet `1yILFZTbFI-8adJz_0_ukL8fz4eQb_lt5KwWAT2zY0bE`, колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
 - `services/rabona.json` — нормалізація Google Sheets (source → target).
 - `services/og_shop.json` — фід og-shop → sheet `1naPf2qk72InlwiR3mt_1ZOZeBKjRa1iZbVVz8lefiTI`, колонки `name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, param:Размер, vendor`.
-- `services/7tonn.json` / `services/bagland.json` / `services/uabest.json` / `services/arnica_stock.json` — нові конфіги фідів.
-- `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05–00:19 Europe/Kyiv, 6-польовий cron).
+- `services/7tonn.json` / `services/bagland.json` / `services/uabest.json` / `services/arnica_stock.json` / `services/ultrasport.json` / `services/soccerlife.json` — нові конфіги фідів.
+- `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05–00:21 Europe/Kyiv, 6-польовий cron).
 - `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
 - `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `LOCK_TTL_HOURS` (дефолт 12). Для `arnica_stock` додатково: `ARNICA_LOGIN`, `ARNICA_PASSWORD`.
 
@@ -47,6 +47,8 @@ Post-обробка (опційна в колонці):
 - bagland: фід `https://www.baglandopt.com.ua/content/export/ed673ce6583a077e89c7f1ee8ed7ea02.xml`; колонки `name, price, vendorCode, available(@_available), picture, param:Цвет, vendor`.
 - uabest: фід `https://uabest.com.ua/content/export/f3c3a6750fc5783821bd896ea6f5dba3.xml`; колонки `name, price, vendorCode, quantity_in_stock, picture, vendor`.
 - arnica_stock: фід `https://clients.arnica.com.ua/client/downloads/stock/arnica_stock.xml` (через form-login); колонки `name, quantity, color, barcode, contract, wholesale, semi_wholesale, retail, retail_discount, retail_discount_price, size, type, vendor, vendor_code`.
+- ultrasport: фід `https://www.ultrasport.in.ua/content/export/a2c35874b9af20d334a1cb2c25b606e5.xml`; колонки `id(@_id), name, price, oldprice, currencyId, categoryId, vendorCode, available(@_available), url, picture, picture_urls, description, group_id, param:Кількість, param:Розмір, param:Цвет, vendor`.
+- soccerlife: фід `https://soccerlife.com.ua/index.php?route=feed/universal_feed&feed=prom-ua.xml`; колонки `id(@_id), name, price, oldprice, vendorCode, available(@_available), quantity_in_stock, url, picture, picture_urls, param:Размер, param:Цвет, vendor`.
 
 Meta-аркуш `<sheetName>_meta`:
 - Пише `last_update_date`, `last_update_time`, `rows`.
@@ -77,7 +79,9 @@ Meta-аркуш `<sheetName>_meta`:
    - bagland — щодня 00:17 Europe/Kyiv (cron: `0 17 0 * * *`)
    - uabest — щодня 00:18 Europe/Kyiv (cron: `0 18 0 * * *`)
    - arnica_stock — щодня 00:19 Europe/Kyiv (cron: `0 19 0 * * *`)
-   - вебхуки сповіщень (up/down ping): lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`, roksana_shop `m3gaKHNfDc`, rabona `67vFtA8We9`, niala `pStJOiLW3w`, atlantmarket `DFNM6zIb35`, markshop `wibOIypj0X`, powerplay `3hBBC8fLUc`, 7tonn `4XhajZ04yI`, bagland `rDZez4XvX3`, uabest `mjWyQvQwkx`, arnica_stock `UhRMzsSLjo`.
+   - ultrasport — щодня 00:20 Europe/Kyiv (cron: `0 20 0 * * *`)
+   - soccerlife — щодня 00:21 Europe/Kyiv (cron: `0 21 0 * * *`)
+   - вебхуки сповіщень (up/down ping): lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`, roksana_shop `m3gaKHNfDc`, rabona `67vFtA8We9`, niala `pStJOiLW3w`, atlantmarket `DFNM6zIb35`, markshop `wibOIypj0X`, powerplay `3hBBC8fLUc`, 7tonn `4XhajZ04yI`, bagland `rDZez4XvX3`, uabest `mjWyQvQwkx`, arnica_stock `UhRMzsSLjo` (для ultrasport/soccerlife вебхуки ще не підключені).
 
 ## Додавання нового фіда
 1. Скопіюй існуючий конфіг у `services/<new>.json`.
@@ -103,11 +107,16 @@ node services/run-service.mjs services/bagland.json
 node services/run-service.mjs services/uabest.json
 # або (потрібні ARNICA_LOGIN та ARNICA_PASSWORD у .env)
 node services/run-service.mjs services/arnica_stock.json
+# або (потрібен ULTRASPORT_SHEET_ID у .env)
+node services/run-service.mjs services/ultrasport.json
+# або (потрібен SOCCERLIFE_SHEET_ID у .env)
+node services/run-service.mjs services/soccerlife.json
 # або
 node services/run-normalize-sheet.mjs services/rabona.json
 ```
 
 ## Ліміти та застереження
 - `picture_urls` може обрізатися Sheets, якщо рядок > ~50k символів (багато фото).
+- `soccerlife` може відповідати `429` через anti-bot (`adm.tools`) у headless/CLI-середовищі без whitelist.
 - Safe-write поки не реалізований: clear → write. Якщо потрібна атомарність — варто писати у тимчасовий аркуш і міняти місцями.
 - Потокового парсингу нема: на дуже великих фідах доведеться перейти на SAX/stream і записувати чанками під час парсу.

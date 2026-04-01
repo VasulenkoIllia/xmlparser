@@ -8,5 +8,6 @@ yarn-error.log*
 package-lock.json
 # build artifacts
 *.xlsx
+downloads/
 # docker/local
 *.lock

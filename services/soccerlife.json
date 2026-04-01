@@ -1,0 +1,31 @@
+{
+  "name": "soccerlife",
+  "feedUrl": "https://soccerlife.com.ua/index.php?route=feed/universal_feed&feed=prom-ua.xml",
+  "sheetId": "1Zh1niXwWdDFCa0ipArFBVQ4hYrcAP6yDYTuE4z0wt3Q",
+  "sheetName": "soccerlife",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name", "name_ua"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"], "asText": true },
+    { "type": "field", "header": "quantity", "from": ["quantity", "quantity_in_stock"], "asNumber": true },
+    {
+      "type": "param",
+      "header": "param:Розмір",
+      "names": [
+        "Виберіть розмір",
+        "Виберіть розмір взуття Adidas",
+        "Виберіть розмір взуття Nike",
+        "Виберіть розмір взуття Puma",
+        "Виберіть розмір дитячого взуття Nike",
+        "Виберіть розмір жіночого взуття Nike",
+        "Розмір",
+        "Размер",
+        "Size"
+      ],
+      "joinMatched": true,
+      "explodeBySeparator": ";"
+    },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

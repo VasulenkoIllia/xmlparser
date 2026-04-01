@@ -1,0 +1,48 @@
+{
+  "name": "europasport",
+  "sourceFormat": "xlsx",
+  "feedUrl": "https://europasport.com.ua/content/export/99e9f6513afbe16542cf1f5069f3e940.xlsx",
+  "sheetId": "1DSeq2aDM-WGn7eVv2MMNwTxapgNhIvRUq_6rngh-Rpg",
+  "sheetName": "europasport",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "Артикул для отображения на сайте", "from": ["Артикул для отображения на сайте"], "asText": true },
+    { "type": "field", "header": "Название (UA)", "from": ["Название (UA)"] },
+    { "type": "field", "header": "Бренд", "from": ["Бренд"] },
+    { "type": "field", "header": "Цена", "from": ["Цена"], "asNumber": true },
+    {
+      "type": "field",
+      "header": "Размер",
+      "from": ["Размер"],
+      "valueMapNormalize": "size_cm",
+      "valueMap": {
+        "19,5 см": "32",
+        "20 см": "33",
+        "20,5 см": "33.5",
+        "21 см": "34",
+        "21,5 см": "35",
+        "22 см": "35.5",
+        "22,5 см": "36",
+        "23 см": "36.5",
+        "23,5 см": "37.5",
+        "24 см": "38",
+        "24,5 см": "39",
+        "25 см": "40",
+        "25,5 см": "40.5",
+        "26 см": "41",
+        "26,5 см": "42",
+        "27 см": "42.5",
+        "27,5 см": "43",
+        "28 см": "44",
+        "28,5 см": "44.5",
+        "29 см": "45",
+        "29,5 см": "45.5",
+        "30 см": "46",
+        "30,5 см": "47",
+        "31 см": "47.5",
+        "31,5 см": "48",
+        "32 см": "49"
+      }
+    }
+  ]
+}

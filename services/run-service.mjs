@@ -3,6 +3,7 @@ import fs from 'fs';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { google } from 'googleapis';
+import xlsx from 'xlsx';
 import os from 'os';
 import path from 'path';
 import { URLSearchParams } from 'url';
@@ -51,6 +52,7 @@ function loadConfig(path) {
   cfg.retryDelayMs = Number(cfg.retryDelayMs || process.env.RETRY_DELAY_MS || 2000);
   cfg.metaSheetName = cfg.metaSheetName || `${cfg.sheetName}_meta`;
   cfg.columns = cfg.columns || DEFAULT_COLUMNS;
+  cfg.sourceFormat = String(cfg.sourceFormat || 'xml').toLowerCase();
   return cfg;
 }
 
@@ -82,10 +84,31 @@ function pickField(obj, keys) {
   return '';
 }
 
-function pickParam(obj, names) {
+function pickParam(obj, names, options = {}) {
   const params = arrayify(obj.param);
+  const ignored = new Set((options.ignoreValues || []).map((v) => String(v).trim().toLowerCase()));
+  if (options.joinMatched) {
+    const wanted = new Set(names);
+    const seen = new Set();
+    const values = [];
+
+    for (const p of params) {
+      const paramName = p?.['@_name'];
+      const rawValue = p?.['#text'];
+      const value = rawValue === undefined || rawValue === null ? '' : String(rawValue).trim();
+      if (!wanted.has(paramName) || !value || ignored.has(value.toLowerCase()) || seen.has(value)) continue;
+      seen.add(value);
+      values.push(value);
+    }
+
+    return values.join(options.separator || '; ');
+  }
+
   for (const name of names) {
-    for (const p of params) if (p['@_name'] === name) return p['#text'] || '';
+    for (const p of params) {
+      const value = p?.['#text'] === undefined || p?.['#text'] === null ? '' : String(p['#text']).trim();
+      if (p['@_name'] === name && value && !ignored.has(value.toLowerCase())) return value;
+    }
   }
   return '';
 }
@@ -102,6 +125,53 @@ function toNumberIfPossible(val) {
 
   const num = Number(normalized);
   return Number.isFinite(num) ? num : val;
+}
+
+function normalizeValueMapKey(val, mode) {
+  if (val === undefined || val === null) return '';
+  const raw = String(val).replace(/\u00a0/g, ' ').trim();
+  if (!raw) return '';
+
+  switch (mode) {
+    case 'size_cm':
+      return raw
+        .replace(/\s+/g, ' ')
+        .replace(/(\d+(?:[.,]\d+)?)\s*см$/i, '$1 см')
+        .replace(/^(\d+(?:[.,]\d+)?)\s*см$/i, (_, num) => `${String(num).replace('.', ',')} см`)
+        .toLowerCase();
+    case 'lower':
+      return raw.toLowerCase();
+    default:
+      return raw;
+  }
+}
+
+function applyValueMap(val, col) {
+  if (!col?.valueMap || val === undefined || val === null || val === '') return val;
+
+  const normalizedInput = normalizeValueMapKey(val, col.valueMapNormalize);
+  let mapped;
+
+  if (Array.isArray(col.valueMap)) {
+    const matches = [];
+    for (const entry of col.valueMap) {
+      if (!entry) continue;
+      const from = Array.isArray(entry) ? entry[0] : entry.from;
+      const to = Array.isArray(entry) ? entry[1] : entry.to;
+      if (normalizeValueMapKey(from, col.valueMapNormalize) !== normalizedInput) continue;
+      matches.push(to);
+    }
+    if (matches.length === 1) mapped = matches[0];
+    if (matches.length > 1) mapped = matches.join(col.valueMapSeparator || '; ');
+  } else {
+    for (const [from, to] of Object.entries(col.valueMap)) {
+      if (normalizeValueMapKey(from, col.valueMapNormalize) !== normalizedInput) continue;
+      mapped = to;
+      break;
+    }
+  }
+
+  return mapped === undefined ? val : mapped;
 }
 
 function isLikelyNumericColumn(col) {
@@ -401,6 +471,11 @@ function extractOffers(parsed) {
   return null;
 }
 
+function isAdmToolsChallengePayload(payload) {
+  if (typeof payload !== 'string') return false;
+  return payload.includes('adm.tools') && payload.includes('Захищена сторінка');
+}
+
 async function fetchOffers(cfg) {
   const headers = {};
   if (cfg.auth) {
@@ -408,13 +483,67 @@ async function fetchOffers(cfg) {
     if (cookie) headers.Cookie = cookie;
   }
 
-  const xml = (
-    await axios.get(cfg.feedUrl, {
-      timeout: 60_000,
-      headers,
-      responseType: 'text',
-    })
-  ).data;
+  if (cfg.sourceFormat === 'xlsx') {
+    const tmpExt = path.extname(new URL(cfg.feedUrl).pathname) || '.xlsx';
+    const tmpPath = path.join(os.tmpdir(), `feed-source-${cfg.name || cfg.sheetName}-${process.pid}-${Date.now()}${tmpExt}`);
+
+    try {
+      const fileData = (
+        await axios.get(cfg.feedUrl, {
+          timeout: 60_000,
+          headers,
+          responseType: 'arraybuffer',
+        })
+      ).data;
+
+      fs.writeFileSync(tmpPath, Buffer.from(fileData));
+
+      const workbook = xlsx.readFile(tmpPath, { cellDates: true });
+      const sheetName = cfg.sourceSheetName || workbook.SheetNames[0];
+      if (!sheetName || !workbook.Sheets[sheetName]) {
+        throw new Error(`No sheet found in workbook${sheetName ? `: ${sheetName}` : ''}`);
+      }
+
+      const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {
+        defval: '',
+        raw: false,
+      });
+      return Array.isArray(rows) ? rows : [];
+    } finally {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch (err) {
+        // ignore temp cleanup failures
+      }
+    }
+  }
+
+  let xml;
+  try {
+    xml = (
+      await axios.get(cfg.feedUrl, {
+        timeout: 60_000,
+        headers,
+        responseType: 'text',
+      })
+    ).data;
+  } catch (err) {
+    const status = err?.response?.status;
+    const payload = err?.response?.data;
+    if (status === 429 && isAdmToolsChallengePayload(payload)) {
+      throw new Error(
+        'Blocked by adm.tools anti-bot (HTTP 429). This feed requires IP allowlist or an alternative unprotected source URL.'
+      );
+    }
+    throw err;
+  }
+
+  if (isAdmToolsChallengePayload(xml)) {
+    throw new Error(
+      'Received anti-bot challenge page instead of feed XML (adm.tools). This feed requires IP allowlist or an alternative unprotected source URL.'
+    );
+  }
+
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
   const feed = parser.parse(xml);
   const offers = extractOffers(feed);
@@ -445,7 +574,7 @@ function buildRows(offers, cfg) {
           val = pickField(o, (c.from || []).map((k) => `@_${k}`)) || (c.key ? o[`@_${c.key}`] : '');
           break;
         case 'param':
-          val = pickParam(o, c.names || []);
+          val = pickParam(o, c.names || [], c);
           break;
         case 'pictures':
           val = pics.join('; ');
@@ -463,6 +592,7 @@ function buildRows(offers, cfg) {
       }
 
       val = normalizeCellValue(val);
+      val = applyValueMap(val, c);
 
       const needsStringTransforms = c.insideParensOnly || c.stripParens || c.cleanContains;
       if (needsStringTransforms && val !== undefined && val !== null && val !== '') {
@@ -494,7 +624,31 @@ function buildRows(offers, cfg) {
       return val;
     });
 
-    rows.push(row);
+    let expandedRows = [row];
+    cfg.columns.forEach((c, colIdx) => {
+      if (!c.explodeBySeparator) return;
+
+      const separator = String(c.explodeBySeparator);
+      expandedRows = expandedRows.flatMap((currentRow) => {
+        const cellValue = currentRow[colIdx];
+        if (cellValue === undefined || cellValue === null || cellValue === '') return [currentRow];
+
+        const parts = String(cellValue)
+          .split(separator)
+          .map((part) => part.trim())
+          .filter(Boolean);
+
+        if (parts.length <= 1) return [currentRow];
+
+        return parts.map((part) => {
+          const nextRow = [...currentRow];
+          nextRow[colIdx] = part;
+          return nextRow;
+        });
+      });
+    });
+
+    rows.push(...expandedRows);
   });
 
   return rows;

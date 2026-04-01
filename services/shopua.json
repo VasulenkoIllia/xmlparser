@@ -1,0 +1,21 @@
+{
+  "name": "shopua",
+  "feedUrl": "https://shopua.salesdrive.me/export/yml/export.yml?publicKey=yU8mxc9vBty5Fib_RHKevVD2stsjFjGslx1mQmcls77O1JMRg46A39",
+  "sheetId": "1pSN0cji7B4INvM_PaWziDe8Pepg1Dh8ko5fR-y1Pxho",
+  "sheetName": "shopua",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name", "name_ua"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"], "asText": true },
+    { "type": "field", "header": "quantity_in_stock", "from": ["quantity_in_stock", "quantity"], "asNumber": true },
+    {
+      "type": "param",
+      "header": "param:Размер",
+      "names": ["Размер", "Размер поставщика", "Розмір", "Розмір комірки", "Розмір постачальника"],
+      "joinMatched": true,
+      "ignoreValues": ["Ні", "Нет", "No"]
+    },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

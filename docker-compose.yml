@@ -14,7 +14,7 @@ services:
     labels:
       - "traefik.enable=false"
       - "ofelia.enabled=true"
-      # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05–00:19
+      # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05–00:21
       - "ofelia.job-exec.lispo.schedule=0 5 0 * * *"
       - "ofelia.job-exec.lispo.command=sh -lc 'node services/run-service.mjs services/lispo.json; code=$$?; if [ $$code -eq 0 ]; then wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw?status=down&msg=FAIL&ping=\" >/dev/null; fi; exit $$code'"
       - "ofelia.job-exec.clsport.schedule=0 6 0 * * *"
@@ -45,6 +45,14 @@ services:
       - "ofelia.job-exec.uabest.command=sh -lc 'node services/run-service.mjs services/uabest.json; code=$$?; if [ $$code -eq 0 ]; then wget -qO- \"https://status.workflo.space/api/push/mjWyQvQwkx?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"https://status.workflo.space/api/push/mjWyQvQwkx?status=down&msg=FAIL&ping=\" >/dev/null; fi; exit $$code'"
       - "ofelia.job-exec.arnica_stock.schedule=0 19 0 * * *"
       - "ofelia.job-exec.arnica_stock.command=sh -lc 'node services/run-service.mjs services/arnica_stock.json; code=$$?; if [ $$code -eq 0 ]; then wget -qO- \"https://status.workflo.space/api/push/UhRMzsSLjo?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"https://status.workflo.space/api/push/UhRMzsSLjo?status=down&msg=FAIL&ping=\" >/dev/null; fi; exit $$code'"
+      - "ofelia.job-exec.ultrasport.schedule=0 20 0 * * *"
+      - "ofelia.job-exec.ultrasport.command=sh -lc 'node services/run-service.mjs services/ultrasport.json'"
+      - "ofelia.job-exec.soccerlife.schedule=0 21 0 * * *"
+      - "ofelia.job-exec.soccerlife.command=sh -lc 'node services/run-service.mjs services/soccerlife.json'"
+      - "ofelia.job-exec.shopua.schedule=0 22 0 * * *"
+      - "ofelia.job-exec.shopua.command=sh -lc 'node services/run-service.mjs services/shopua.json'"
+      - "ofelia.job-exec.europasport.schedule=0 23 0 * * *"
+      - "ofelia.job-exec.europasport.command=sh -lc 'node services/run-service.mjs services/europasport.json'"
 
   ofelia:
     image: mcuadros/ofelia:0.3.13

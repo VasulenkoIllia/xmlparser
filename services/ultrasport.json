@@ -1,0 +1,15 @@
+{
+  "name": "ultrasport",
+  "feedUrl": "https://www.ultrasport.in.ua/content/export/a2c35874b9af20d334a1cb2c25b606e5.xml",
+  "sheetId": "1GP7oDixu9gqZR053VXmrlcJaj7nH1pu5H2Er5EL_V8A",
+  "sheetName": "ultrasport",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"] },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"], "asText": true },
+    { "type": "param", "header": "param:Кількість", "names": ["Кількість"], "asNumber": true },
+    { "type": "param", "header": "param:Розмір", "names": ["Розмір", "Размер", "Size"] },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}
