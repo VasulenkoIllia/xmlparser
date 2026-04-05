@@ -1,0 +1,13 @@
+{
+  "name": "minoxidil",
+  "feedUrl": "https://minoxidil-ukraine.com/index.php?route=extension/feed/unixml/partners",
+  "sheetId": "1a3EBVNHZkqWp0-hdoJrtbyDvPBPL5ivWCW2AR6oPucs",
+  "sheetName": "minoxidil",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"], "asNumber": true },
+    { "type": "field", "header": "vendorCode", "from": ["vendorCode"], "asText": true },
+    { "type": "field", "header": "vendor", "from": ["vendor"] }
+  ]
+}

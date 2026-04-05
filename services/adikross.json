@@ -1,0 +1,24 @@
+{
+  "name": "adikross",
+  "feedUrl": "https://adikross.com.ua/drop.xml",
+  "sheetId": "15I5azwEsjptS53_3hSQmFIq2vTJHK8ISfH24qrK7dYo",
+  "sheetName": "adikross",
+  "chunkRows": 1500,
+  "columns": [
+    { "type": "field", "header": "name", "from": ["name"] },
+    { "type": "field", "header": "price", "from": ["price"], "asNumber": true },
+    { "type": "field", "header": "dropprice", "from": ["dropprice"], "asNumber": true },
+    {
+      "type": "field_list",
+      "header": "size",
+      "from": ["size"],
+      "valueFrom": "@_name",
+      "separator": "; ",
+      "unique": true,
+      "explodeBySeparator": ";"
+    },
+    { "type": "field", "header": "sku", "from": ["sku"], "asText": true },
+    { "type": "param", "header": "param:Бренд", "names": ["Бренд"] },
+    { "type": "param", "header": "param:Стать", "names": ["Стать"] }
+  ]
+}

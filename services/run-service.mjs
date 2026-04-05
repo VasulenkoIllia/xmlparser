@@ -84,6 +84,38 @@ function pickField(obj, keys) {
   return '';
 }
 
+function pickFieldList(obj, options = {}) {
+  const source = pickField(obj, options.from || []);
+  const items = arrayify(source);
+  const ignored = new Set((options.ignoreValues || []).map((v) => String(v).trim().toLowerCase()));
+  const seen = new Set();
+  const values = [];
+
+  for (const item of items) {
+    let value;
+    if (options.valueFrom) {
+      value = options.valueFrom === '.' ? item : getByPath(item, options.valueFrom);
+    } else if (options.attr) {
+      value = item?.[`@_${options.attr}`];
+    } else {
+      value = item;
+    }
+
+    if (value === undefined || value === null) continue;
+    const normalized = String(value).trim();
+    if (!normalized || ignored.has(normalized.toLowerCase())) continue;
+
+    if (options.unique !== false) {
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+    }
+
+    values.push(normalized);
+  }
+
+  return values.join(options.separator || '; ');
+}
+
 function pickParam(obj, names, options = {}) {
   const params = arrayify(obj.param);
   const ignored = new Set((options.ignoreValues || []).map((v) => String(v).trim().toLowerCase()));
@@ -569,6 +601,9 @@ function buildRows(offers, cfg) {
       switch (c.type) {
         case 'field':
           val = pickField(o, c.from || []);
+          break;
+        case 'field_list':
+          val = pickFieldList(o, c);
           break;
         case 'attribute':
           val = pickField(o, (c.from || []).map((k) => `@_${k}`)) || (c.key ? o[`@_${c.key}`] : '');

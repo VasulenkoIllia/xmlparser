@@ -23,6 +23,8 @@
     "service:soccerlife": "node services/run-service.mjs services/soccerlife.json",
     "service:shopua": "node services/run-service.mjs services/shopua.json",
     "service:europasport": "node services/run-service.mjs services/europasport.json",
+    "service:adikross": "node services/run-service.mjs services/adikross.json",
+    "service:minoxidil": "node services/run-service.mjs services/minoxidil.json",
     "service:rabona": "node services/run-normalize-sheet.mjs services/rabona.json",
     "normalize:xls": "node scripts/normalize-xls.mjs",
     "normalize:sheet": "node scripts/normalize-sheet.mjs",

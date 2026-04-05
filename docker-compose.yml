@@ -14,7 +14,7 @@ services:
     labels:
       - "traefik.enable=false"
       - "ofelia.enabled=true"
-      # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05–00:21
+      # робимо 6-польовий cron (sec min hour dom mon dow): щодня 00:05–00:25
       - "ofelia.job-exec.lispo.schedule=0 5 0 * * *"
       - "ofelia.job-exec.lispo.command=sh -lc 'node services/run-service.mjs services/lispo.json; code=$$?; if [ $$code -eq 0 ]; then wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw?status=up&msg=OK&ping=\" >/dev/null; else wget -qO- \"https://status.workflo.space/api/push/OzF3oV9VSw?status=down&msg=FAIL&ping=\" >/dev/null; fi; exit $$code'"
       - "ofelia.job-exec.clsport.schedule=0 6 0 * * *"
@@ -53,6 +53,10 @@ services:
       - "ofelia.job-exec.shopua.command=sh -lc 'node services/run-service.mjs services/shopua.json'"
       - "ofelia.job-exec.europasport.schedule=0 23 0 * * *"
       - "ofelia.job-exec.europasport.command=sh -lc 'node services/run-service.mjs services/europasport.json'"
+      - "ofelia.job-exec.adikross.schedule=0 24 0 * * *"
+      - "ofelia.job-exec.adikross.command=sh -lc 'node services/run-service.mjs services/adikross.json'"
+      - "ofelia.job-exec.minoxidil.schedule=0 25 0 * * *"
+      - "ofelia.job-exec.minoxidil.command=sh -lc 'node services/run-service.mjs services/minoxidil.json'"
 
   ofelia:
     image: mcuadros/ofelia:0.3.13
