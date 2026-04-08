@@ -11,6 +11,8 @@
     { "type": "field", "header": "rrc", "from": ["rrc"] },
     { "type": "field", "header": "SIZE", "from": ["SIZE"] },
     { "type": "field", "header": "Spec", "from": ["Spec"] },
+    { "type": "field", "header": "ORIG_COL", "from": ["ORIG_COL"] },
+    { "type": "field", "header": "Gender", "from": ["Gender"] },
     { "type": "formula", "header": "Дроп", "template": "=D{row}*(1-F{row}/100)" }
   ]
 }
