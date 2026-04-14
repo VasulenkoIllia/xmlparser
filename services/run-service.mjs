@@ -151,8 +151,15 @@ function toNumberIfPossible(val) {
   const trimmed = val.trim();
   if (!trimmed) return '';
 
-  // Support both "1234.56" and "1234,56".
-  const normalized = trimmed.replace(/\s+/g, '').replace(',', '.');
+  // Support decimals ("1234,56") and formatted thousands from XLS ("7,950").
+  let normalized = trimmed.replace(/\s+/g, '');
+  if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(normalized)) {
+    normalized = normalized.replace(/,/g, '');
+  } else if (/^-?\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(normalized)) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else {
+    normalized = normalized.replace(',', '.');
+  }
   if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return val;
 
   const num = Number(normalized);
@@ -539,6 +546,7 @@ async function fetchOffers(cfg) {
       const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {
         defval: '',
         raw: false,
+        range: cfg.sourceHeaderRow ? Number(cfg.sourceHeaderRow) : undefined,
       });
       return Array.isArray(rows) ? rows : [];
     } finally {
@@ -629,7 +637,8 @@ function buildRows(offers, cfg) {
       val = normalizeCellValue(val);
       val = applyValueMap(val, c);
 
-      const needsStringTransforms = c.insideParensOnly || c.stripParens || c.cleanContains;
+      const needsStringTransforms =
+        c.insideParensOnly || c.stripParens || c.cleanContains || c.removeAfterLastSpace;
       if (needsStringTransforms && val !== undefined && val !== null && val !== '') {
         let valStr = String(val);
 
@@ -647,6 +656,10 @@ function buildRows(offers, cfg) {
             valStr.includes(s)
           );
           valStr = hit ? '' : valStr;
+        }
+
+        if (c.removeAfterLastSpace) {
+          valStr = valStr.replace(/\s+\S+$/, '').trim();
         }
 
         val = valStr;

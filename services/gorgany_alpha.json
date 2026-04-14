@@ -1,18 +1,24 @@
 {
   "name": "gorgany_alpha",
-  "feedUrl": "https://gorgany.eu/xmlxls/all_xml_alpha.xml",
+  "sourceFormat": "xlsx",
+  "feedUrl": "https://gorgany.eu/xmlxls/all_alpha.xls",
+  "sourceSheetName": "TDSheet",
+  "sourceHeaderRow": 4,
   "sheetId": "1PtUuIozSxoPo_yAnII3hv5XwQXmsu7Sz1IzHqWZZEHk",
   "sheetName": "gorgany_alpha",
   "chunkRows": 1500,
   "columns": [
-    { "type": "field", "header": "id", "from": ["id"] },
-    { "type": "field", "header": "name", "from": ["name"] },
-    { "type": "field", "header": "price", "from": ["price"] },
-    { "type": "field", "header": "rrc", "from": ["rrc"] },
-    { "type": "field", "header": "SIZE", "from": ["SIZE"] },
-    { "type": "field", "header": "Spec", "from": ["Spec"] },
+    { "type": "field", "header": "Код", "from": ["Код"], "asText": true },
+    { "type": "field", "header": "Назва", "from": ["Назва"] },
+    { "type": "field", "header": "РРЦ, грн", "from": ["РРЦ, грн"], "asNumber": true },
+    { "type": "field", "header": "BRAND", "from": ["BRAND"] },
+    { "type": "field", "header": "COLOR", "from": ["COLOR"] },
+    { "type": "field", "header": "Amount", "from": ["Amount"], "asNumber": true },
+    { "type": "field", "header": "COD", "from": ["COD"], "asText": true, "removeAfterLastSpace": true },
     { "type": "field", "header": "ORIG_COL", "from": ["ORIG_COL"] },
+    { "type": "field", "header": "SIZE", "from": ["SIZE"] },
     { "type": "field", "header": "Gender", "from": ["Gender"] },
-    { "type": "formula", "header": "Дроп", "template": "=D{row}*(1-F{row}/100)" }
+    { "type": "field", "header": "STYLE", "from": ["STYLE"] },
+    { "type": "field", "header": "Folder1", "from": ["Folder1"] }
   ]
 }
