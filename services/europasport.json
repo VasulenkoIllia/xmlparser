@@ -1,7 +1,7 @@
 {
   "name": "europasport",
   "sourceFormat": "xlsx",
-  "feedUrl": "https://europasport.com.ua/content/export/99e9f6513afbe16542cf1f5069f3e940.xlsx",
+  "feedUrl": "http://europasport.com.ua/content/export/bc598ba3f3376d00eb14470f54a3dcb3.xlsx",
   "sheetId": "1DSeq2aDM-WGn7eVv2MMNwTxapgNhIvRUq_6rngh-Rpg",
   "sheetName": "europasport",
   "chunkRows": 1500,
