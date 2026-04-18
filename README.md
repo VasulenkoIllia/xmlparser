@@ -1,122 +1,248 @@
-## Overview
-- Проєкт тягне YML/EML фіди, трансформує у потрібні колонки і пише в окремі Google Sheets через Service Account.
-- Є окремий раннер для нормалізації листа з однієї таблиці у іншу (rabona), з meta-аркушем як у фідів.
-- Є 16 сервісних профілів (lispo, clsport, gorgany_alpha, lekos, og_shop, roksana_shop, niala, atlantmarket, markshop, powerplay, 7tonn, bagland, uabest, arnica_stock, ultrasport, soccerlife); легко додати нові через JSON-конфіг.
-- Оновлення запускаються контейнером `feeds-runner`, а розклад керує `ofelia` (cron усередині Docker).
+## Огляд
 
-## Структура
-- `services/run-service.mjs` — основний раннер: тягне фід, будує рядки, ретраїть усі виклики Sheets, оновлює meta-аркуш, ставить лок-файл щоб уникати паралельних запусків одного фіда (з перевіркою PID і TTL).
-- `services/run-normalize-sheet.mjs` — нормалізує лист у окрему таблицю, оновлює meta-аркуш, має лок-файл.
-- `services/lispo.json` / `services/clsport.json` / `services/gorgany_alpha.json` — конфіги існуючих фідів.
-- `services/niala.json` / `services/atlantmarket.json` / `services/markshop.json` / `services/powerplay.json` / `services/roksana_shop.json` — додаткові конфіги фідів.
-- `services/lekos.json` — фід lekos → sheet `1yILFZTbFI-8adJz_0_ukL8fz4eQb_lt5KwWAT2zY0bE`, колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
-- `services/rabona.json` — нормалізація Google Sheets (source → target).
-- `services/og_shop.json` — фід og-shop → sheet `1naPf2qk72InlwiR3mt_1ZOZeBKjRa1iZbVVz8lefiTI`, колонки `name, price, Дроп=price*0,9, vendorCode, quantity_in_stock, param:Размер, vendor`.
-- `services/7tonn.json` / `services/bagland.json` / `services/uabest.json` / `services/arnica_stock.json` / `services/ultrasport.json` / `services/soccerlife.json` — нові конфіги фідів.
-- `docker-compose.yml` — збірка/запуск контейнерів `feeds-runner` і `ofelia`, розклад (щодня 00:05–00:21 Europe/Kyiv, 6-польовий cron).
-- `Dockerfile` — образ на node:18-alpine, тягне прод-залежності, копіює `services/`.
-- `.env` (локально, не в репо) — креденшіали сервісного акаунта (`GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`, опц. `GOOGLE_PRIVATE_KEY_ID`, `WRITE_RETRIES`, `RETRY_DELAY_MS`), а також `LOCK_TTL_HOURS` (дефолт 12). Для `arnica_stock` додатково: `ARNICA_LOGIN`, `ARNICA_PASSWORD`.
+Проєкт завантажує XML/XLSX прайс-фіди від постачальників, трансформує дані відповідно до конфігу та записує в Google Sheets через Service Account API. Підтримує 4 оновлення на добу з Telegram-сповіщеннями про помилки.
 
-## Колонки й трансформації
-Типи колонок у конфіг-JSON:
-- `field`: бере перше непорожнє поле з `from` (підтримує вкладені ключі через крапку, наприклад `prices.contract`).
-- `attribute`: те саме, але з атрибутів (`@_`), або `key`.
-- `param`: бере перший param з імен із `names`.
-- `picture_image`: формула `=IMAGE(<перше фото>)`.
-- `pictures`: усі фото, з’єднані через `; `.
-- `formula`: підставляє номер рядка (`{row}`) у `template` і записує формулу (наприклад `=D{row}*(1-F{row}/100)` або `=A{row}*0,8`).
-- Авто-детект числових колонок: якщо в назві/джерелі поля є ознаки ціни/кількості (`price`, `drop`, `quantity`, `stock`, `retail`, `wholesale`, тощо), значення конвертуються в число і для колонки ставиться формат `NUMBER` (щоб уникати авто-парсингу як дати).
-- `asNumber` (опційно): примусово позначає колонку як числову.
-- `asText` (опційно): примусово вимикає числовий режим (корисно для `vendorCode`, `barcode`, інших кодів).
-Post-обробка (опційна в колонці):  
-`insideParensOnly` — залишає текст всередині перших дужок.  
-`stripParens` — видаляє всі дужки з вмістом.  
-`cleanContains` — якщо значення містить рядок зі списку, очищує поле.
+---
 
-Специфіка поточних фідів:
-- lispo: `Розмір` бере вміст у дужках; колонка `Дроп` = `price * 0,8`.
-- clsport: `Розмір` видаляє все в дужках і чистить рядки зі словом “Розмір/Размер/Розмер`.
-- gorgany_alpha: фід `https://gorgany.eu/xmlxls/all_xml_alpha.xml`; колонки `id, name, price, rrc, SIZE, Spec, Дроп`, де `Дроп = D*(1-F/100)`.
-- lekos: фід `https://lekos.com.ua/partner/`; колонки `id(@_id), name, price, available(@_available), picture_urls, price_partner, stock_quantity, vendor`.
-- og_shop: фід `https://og-shop.in.ua/xml/out.php`; колонки `name, price, Дроп=B*0,9, vendorCode, quantity_in_stock, param(Размер), vendor`.
-- niala: фід `https://niala.com.ua/xml/ac/niala-3205010.xml`; колонки `name, price, vendorCode, quantity_in_stock, picture, param:Размер, param:Цвет, vendor`.
-- atlantmarket: фід `https://atlantmarket.com.ua/price1/prom/atlantmarketprom(false).xml`; колонки `name, price, available(@_available), picture, barcode, param:Розмір, vendor`.
-- markshop: фід `https://markshop.kiev.ua/plugins/mark/feed/white.xml`; колонки `price, vendorCode, quantity_in_stock, picture, name_ua, param:Цвет, param:Размер, vendor`.
-- powerplay: фід `https://powerplay.com.ua/products_feed.xml?...`; колонки `name, price, vendorCode, quantity_in_stock, picture, param:Размер, param:Цвет, vendor`.
-- 7tonn: фід `https://7tonn.com.ua/index.php?route=account/product_export/download&filter_quantity=1&export_format=xml`; колонки `name, quantity, picture, drop_price, model, param:Розмір, param:Колір, vendor`.
-- bagland: фід `https://www.baglandopt.com.ua/content/export/ed673ce6583a077e89c7f1ee8ed7ea02.xml`; колонки `name, price, vendorCode, available(@_available), picture, param:Цвет, vendor`.
-- uabest: фід `https://uabest.com.ua/content/export/f3c3a6750fc5783821bd896ea6f5dba3.xml`; колонки `name, price, vendorCode, quantity_in_stock, picture, vendor`.
-- arnica_stock: фід `https://clients.arnica.com.ua/client/downloads/stock/arnica_stock.xml` (через form-login); колонки `name, quantity, color, barcode, contract, wholesale, semi_wholesale, retail, retail_discount, retail_discount_price, size, type, vendor, vendor_code`.
-- ultrasport: фід `https://www.ultrasport.in.ua/content/export/a2c35874b9af20d334a1cb2c25b606e5.xml`; колонки `id(@_id), name, price, oldprice, currencyId, categoryId, vendorCode, available(@_available), url, picture, picture_urls, description, group_id, param:Кількість, param:Розмір, param:Цвет, vendor`.
-- soccerlife: фід `https://soccerlife.com.ua/index.php?route=feed/universal_feed&feed=prom-ua.xml`; колонки `id(@_id), name, price, oldprice, vendorCode, available(@_available), quantity_in_stock, url, picture, picture_urls, param:Размер, param:Цвет, vendor`.
+## Архітектура
 
-Meta-аркуш `<sheetName>_meta`:
-- Пише `last_update_date`, `last_update_time`, `rows`.
-- Conditional formatting на B1: зелена — якщо дата сьогодні, червона — якщо ні.
-
-Ретраї та безпека:
-- Всі мережеві виклики (fetch, get/batchUpdate, clear, write chunks, meta) з ретраями (дефолт 3, 2s * 2^(n-1)).
-- Лок-файл у `/tmp/feed-lock-<name>.lock` не дає двом запускати один фід одночасно; містить PID і timestamp, мертвий PID lock перевідкривається одразу, stale-lock видаляється після `LOCK_TTL_HOURS`.
-- TZ задається через `TZ` (compose ставить Europe/Kyiv); дата/час у meta формуються з урахуванням TZ.
-
-## Запуск у Docker
-1. Створи зовнішню мережу Traefik за потреби (`docker network create traefik`) або залиш без неї.
-2. Поклади `.env` поруч із `docker-compose.yml` (тільки креденшіали та, опційно, налаштування ретраїв).
-3. `docker compose up -d --build`
-4. Ofelia всередині складу виконує:
-   - lispo — щодня 00:05 Europe/Kyiv (cron: `0 5 0 * * *`)
-   - clsport — щодня 00:06 Europe/Kyiv (cron: `0 6 0 * * *`)
-   - gorgany_alpha — щодня 00:07 Europe/Kyiv (cron: `0 7 0 * * *`)
-   - lekos — щодня 00:08 Europe/Kyiv (cron: `0 8 0 * * *`)
-   - og_shop — щодня 00:09 Europe/Kyiv (cron: `0 9 0 * * *`)
-   - roksana_shop — щодня 00:10 Europe/Kyiv (cron: `0 10 0 * * *`)
-   - niala — щодня 00:11 Europe/Kyiv (cron: `0 11 0 * * *`)
-   - atlantmarket — щодня 00:12 Europe/Kyiv (cron: `0 12 0 * * *`)
-   - markshop — щодня 00:13 Europe/Kyiv (cron: `0 13 0 * * *`)
-   - powerplay — щодня 00:14 Europe/Kyiv (cron: `0 14 0 * * *`)
-   - rabona — щодня 00:15 Europe/Kyiv (cron: `0 15 0 * * *`)
-   - 7tonn — щодня 00:16 Europe/Kyiv (cron: `0 16 0 * * *`)
-   - bagland — щодня 00:17 Europe/Kyiv (cron: `0 17 0 * * *`)
-   - uabest — щодня 00:18 Europe/Kyiv (cron: `0 18 0 * * *`)
-   - arnica_stock — щодня 00:19 Europe/Kyiv (cron: `0 19 0 * * *`)
-   - ultrasport — щодня 00:20 Europe/Kyiv (cron: `0 20 0 * * *`)
-   - soccerlife — щодня 00:21 Europe/Kyiv (cron: `0 21 0 * * *`)
-   - вебхуки сповіщень (up/down ping): lispo `OzF3oV9VSw`, clsport `JgIPE6I5H2`, gorgany_alpha `gZf0qECvmI`, lekos `N1kyaEQFBO`, og_shop `bwSm9221oi`, roksana_shop `m3gaKHNfDc`, rabona `67vFtA8We9`, niala `pStJOiLW3w`, atlantmarket `DFNM6zIb35`, markshop `wibOIypj0X`, powerplay `3hBBC8fLUc`, 7tonn `4XhajZ04yI`, bagland `rDZez4XvX3`, uabest `mjWyQvQwkx`, arnica_stock `UhRMzsSLjo` (для ultrasport/soccerlife вебхуки ще не підключені).
-
-## Додавання нового фіда
-1. Скопіюй існуючий конфіг у `services/<new>.json`.
-2. Заповни `feedUrl`, `sheetId`, `sheetName`, при потребі налаштуй `columns`, розклад у `docker-compose.yml` (новий job-ofelia).
-3. Запусти: `node services/run-service.mjs services/<new>.json` (локально з .env) або додай job-лейбл і перезапусти `docker compose up -d`.
-
-## Ручний запуск локально
 ```
-GOOGLE_CLIENT_EMAIL=... \
-GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n... \n-----END PRIVATE KEY-----\n" \
+services/
+├── core/
+│   ├── sheets.mjs          — спільні утиліти: Google Sheets API, lock, retry, helpers
+│   └── telegram.mjs        — Telegram-сповіщення (помилки + підсумок)
+├── run-service.mjs         — основний раннер фідів (XML/XLSX → Google Sheets)
+├── run-normalize-sheet.mjs — нормалізація Google Sheet → Google Sheet (rabona)
+├── run-all.mjs             — запускає всі фіди послідовно, шле підсумок у Telegram
+├── registry.json           — реєстр всіх фідів (єдине місце для додавання нових)
+├── *.json                  — конфіги постачальників (по одному файлу на кожного)
+scripts/
+├── inspect-feed.mjs        — інспектор фіду: аналізує і генерує готовий конфіг
+├── normalize-core.mjs      — логіка нормалізації рядків (для rabona)
+├── normalize-sheet.mjs     — CLI нормалізації Google Sheet
+├── normalize-xls.mjs       — CLI нормалізації локального XLS
+└── export-feed.mjs         — CLI експорту фіду в XLSX
+```
+
+---
+
+## Змінні середовища (.env)
+
+```bash
+# ── Обов'язкові ───────────────────────────────────────────
+GOOGLE_CLIENT_EMAIL=service-account@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+# ── Telegram (необов'язково, але рекомендовано) ────────────
+# Отримати токен: @BotFather → /newbot
+# Отримати chat_id: @userinfobot або додати бота в групу/канал
+# Підтримка кількох отримувачів через кому:
+TELEGRAM_BOT_TOKEN=123456789:ABC-DEFxxxxxxx
+TELEGRAM_CHAT_ID=-1001234567890
+# або кілька:
+# TELEGRAM_CHAT_ID=111111111,222222222,@your_channel
+
+# ── Автентифікація для окремих фідів ──────────────────────
+ARNICA_LOGIN=your_login
+ARNICA_PASSWORD=your_password
+
+# ── Тюнінг (необов'язково, є дефолти) ─────────────────────
+FEED_DELAY_MS=15000     # пауза між фідами в run-all (мс)
+CHUNK_ROWS=1500         # рядків за один write-запит у Sheets
+WRITE_RETRIES=3         # кількість спроб при помилці
+RETRY_DELAY_MS=2000     # базова затримка між спробами (мс, з exp. backoff + jitter)
+LOCK_TTL_HOURS=12       # через скільки годин вважати lock застарілим
+```
+
+---
+
+## Telegram-сповіщення
+
+| Подія | Повідомлення | Коли |
+|-------|-------------|------|
+| Помилка фіду | `❌ arnica_stock\nConnection timeout...` | Одразу при збої |
+| 0 офферів | `⚠️ soccerlife\nFeed returned 0 offers` | Одразу |
+| Підсумок (є помилки) | `⚠️ Оновлення завершено: 20/21 успішно\n✅ lispo...\n❌ arnica_stock...` | Після завершення run-all |
+| Все ОК | — (мовчить) | — |
+
+Якщо `TELEGRAM_BOT_TOKEN` або `TELEGRAM_CHAT_ID` не задані — сповіщення мовчки пропускаються.
+
+---
+
+## Розклад
+
+4 запуски на добу (Europe/Kyiv). Кожен запуск виконує всі фіди **послідовно** з паузою `FEED_DELAY_MS` між ними:
+
+```
+00:00  →  run-all.mjs  (усі 21 фід, ~20 хв)
+06:00  →  run-all.mjs
+12:00  →  run-all.mjs
+18:00  →  run-all.mjs
+```
+
+Послідовне виконання замість паралельного — навмисне: не перевантажує Google Sheets API (квота 300 req/хв) і не потребує ручного підбору хвилин запуску.
+
+---
+
+## Додавання нового постачальника
+
+### Крок 1 — Інспекція фіду
+```bash
+node scripts/inspect-feed.mjs --url https://supplier.com/feed.xml --name new_supplier
+# або для XLSX:
+node scripts/inspect-feed.mjs --file ./download.xlsx --name new_supplier
+```
+Скрипт виведе структуру фіду та **готовий стартовий конфіг** — скопіюй і відкоригуй.
+
+### Крок 2 — Зберегти конфіг
+```bash
+# Зберегти виведений конфіг:
+node scripts/inspect-feed.mjs --url https://... --name new_supplier > services/new_supplier.json
+# або вручну відредагувати services/new_supplier.json
+```
+
+### Крок 3 — Додати в реєстр
+Один рядок у [`services/registry.json`](services/registry.json):
+```json
+{ "name": "new_supplier", "config": "services/new_supplier.json" }
+```
+Більше нічого не треба — docker-compose і package.json не чіпати.
+
+### Крок 4 — Задеплоїти
+```bash
+docker compose up -d --build
+```
+
+---
+
+## Конфіг постачальника (формат JSON)
+
+```jsonc
+{
+  "name": "my_supplier",          // ідентифікатор (використовується в логах і Telegram)
+  "feedUrl": "https://...",       // URL фіду (XML або XLSX)
+  "sheetId": "GOOGLE_SHEET_ID",  // ID Google Sheets документу
+  "sheetName": "offers",          // назва аркуша для запису
+
+  // Необов'язкові:
+  "sourceFormat": "xml",          // "xml" (дефолт) або "xlsx"
+  "sourceSheetName": "Sheet1",    // для XLSX: назва аркуша в файлі
+  "sourceHeaderRow": 3,           // для XLSX: рядок з заголовками (0-based)
+  "chunkRows": 1500,              // рядків за один запит у Sheets
+  "metaSheetName": "offers_meta", // назва мета-аркуша (дефолт: <sheetName>_meta)
+
+  // Автентифікація (тільки для захищених фідів):
+  "auth": {
+    "type": "form",
+    "loginUrl": "https://site.com/login",
+    "usernameField": "email",
+    "passwordField": "password",
+    "tokenField": "_token",
+    "username": "$SUPPLIER_LOGIN",   // бере з env
+    "password": "$SUPPLIER_PASSWORD"
+  },
+
+  "columns": [ ... ]
+}
+```
+
+### Типи колонок
+
+| Тип | Призначення | Приклад |
+|-----|-------------|---------|
+| `field` | Поле з XML/XLSX (підтримує `from: ["field1","field2"]`, вкладені `prices.contract`) | `{"type":"field","header":"Ціна","from":["price"],"asNumber":true}` |
+| `attribute` | XML-атрибут (`@_id`, `@_available`) | `{"type":"attribute","header":"ID","from":["id"]}` |
+| `param` | XML `<param name="Розмір">` | `{"type":"param","header":"Розмір","names":["Розмір","Размер"]}` |
+| `picture_image` | Формула `=IMAGE(url)` | `{"type":"picture_image","header":"Фото"}` |
+| `pictures` | Всі фото через `; ` | `{"type":"pictures","header":"Фото URLs"}` |
+| `formula` | Excel-формула з підстановкою `{row}` | `{"type":"formula","header":"Дроп","template":"=B{row}*0.8"}` |
+| `field_list` | Масив значень → один рядок | `{"type":"field_list","header":"Теги","from":["tags"],"separator":", "}` |
+
+### Трансформації (опційно в будь-якій колонці)
+
+| Опція | Дія |
+|-------|-----|
+| `asNumber: true` | Примусово числовий формат |
+| `asText: true` | Вимкнути числовий режим (для артикулів, штрихкодів) |
+| `valueMap: {...}` | Замінити значення за словником (напр. `"19.5 см": "32"`) |
+| `valueMapNormalize: "size_cm"` | Нормалізація ключів мапи (підтримує `"size_cm"`, `"lower"`) |
+| `insideParensOnly: true` | Залишити тільки текст у дужках: `"Nike (40)"` → `"40"` |
+| `stripParens: true` | Видалити все в дужках: `"Nike (40)"` → `"Nike"` |
+| `cleanContains: ["N/A"]` | Очистити поле якщо містить слово |
+| `removeAfterLastSpace: true` | Видалити останнє слово: `"Nike 40"` → `"Nike"` |
+| `explodeBySeparator: ";"` | Розбити значення і дублювати рядки по одному |
+| `joinMatched: true` | (для param) зібрати всі значення з підходящим іменем |
+| `ignoreValues: ["N/A"]` | Пропускати певні значення |
+
+---
+
+## Ручний запуск
+
+```bash
+# Один фід:
 node services/run-service.mjs services/lispo.json
-# або
-node services/run-service.mjs services/gorgany_alpha.json
-# або
-node services/run-service.mjs services/lekos.json
-# або
-node services/run-service.mjs services/og_shop.json
-# або
-node services/run-service.mjs services/7tonn.json
-# або
-node services/run-service.mjs services/bagland.json
-# або
-node services/run-service.mjs services/uabest.json
-# або (потрібні ARNICA_LOGIN та ARNICA_PASSWORD у .env)
-node services/run-service.mjs services/arnica_stock.json
-# або (потрібен ULTRASPORT_SHEET_ID у .env)
-node services/run-service.mjs services/ultrasport.json
-# або (потрібен SOCCERLIFE_SHEET_ID у .env)
-node services/run-service.mjs services/soccerlife.json
-# або
+
+# Rabona (sheet → sheet):
 node services/run-normalize-sheet.mjs services/rabona.json
+
+# Всі фіди послідовно:
+npm run run:all
+
+# Dry-run (показати список без запуску):
+npm run run:all:dry
+
+# Конкретний фід через run-all:
+node services/run-all.mjs --name lispo
+
+# Інспекція нового фіду:
+npm run inspect:feed -- --url https://supplier.com/feed.xml --name supplier_name
+
+# Нормалізація локального XLS:
+npm run normalize:xls -- input.xls output.xlsx
 ```
+
+---
+
+## Оновлення на сервері
+
+```bash
+# 1. Зайти на сервер
+ssh user@your-server
+
+# 2. Перейти в директорію проєкту
+cd /path/to/xmlparser
+
+# 3. Отримати зміни
+git pull
+
+# 4. Перебудувати і перезапустити (з downtime ~5 сек)
+docker compose up -d --build
+
+# Перевірити що все запустилось:
+docker compose ps
+docker logs feeds-runner --tail=50
+docker logs ofelia --tail=20
+```
+
+---
+
+## Meta-аркуш
+
+Для кожного фіду автоматично підтримується аркуш `<sheetName>_meta`:
+
+| Поле | Значення |
+|------|---------|
+| `last_update_date` | Дата останнього оновлення |
+| `last_update_time` | Час останнього оновлення |
+| `rows` | Кількість записаних рядків |
+
+Комірка B1 підсвічується: **зелена** — оновлено сьогодні, **червона** — застаріло.
+
+---
 
 ## Ліміти та застереження
-- `picture_urls` може обрізатися Sheets, якщо рядок > ~50k символів (багато фото).
-- `soccerlife` може відповідати `429` через anti-bot (`adm.tools`) у headless/CLI-середовищі без whitelist.
-- Safe-write поки не реалізований: clear → write. Якщо потрібна атомарність — варто писати у тимчасовий аркуш і міняти місцями.
-- Потокового парсингу нема: на дуже великих фідах доведеться перейти на SAX/stream і записувати чанками під час парсу.
+
+- `picture_urls` може обрізатися Sheets якщо рядок > ~50KB (багато фото на офер).
+- `soccerlife` може повертати HTTP 429 через anti-bot (`adm.tools`) в headless-середовищі без whitelist IP.
+- Clear → write не атомарна операція: короткий момент порожнього аркуша між очисткою і записом.
+- Великі фіди (>50k офферів) завантажуються повністю в пам'ять — потокового парсингу немає.

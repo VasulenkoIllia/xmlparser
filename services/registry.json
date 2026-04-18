@@ -1,0 +1,23 @@
+[
+  { "name": "lispo",        "config": "services/lispo.json" },
+  { "name": "clsport",      "config": "services/clsport.json" },
+  { "name": "gorgany_alpha","config": "services/gorgany_alpha.json" },
+  { "name": "lekos",        "config": "services/lekos.json" },
+  { "name": "og_shop",      "config": "services/og_shop.json" },
+  { "name": "roksana_shop", "config": "services/roksana_shop.json" },
+  { "name": "niala",        "config": "services/niala.json" },
+  { "name": "atlantmarket", "config": "services/atlantmarket.json" },
+  { "name": "markshop",     "config": "services/markshop.json" },
+  { "name": "powerplay",    "config": "services/powerplay.json" },
+  { "name": "rabona",       "config": "services/rabona.json", "runner": "normalize" },
+  { "name": "7tonn",        "config": "services/7tonn.json" },
+  { "name": "bagland",      "config": "services/bagland.json" },
+  { "name": "uabest",       "config": "services/uabest.json" },
+  { "name": "arnica_stock", "config": "services/arnica_stock.json" },
+  { "name": "ultrasport",   "config": "services/ultrasport.json" },
+  { "name": "soccerlife",   "config": "services/soccerlife.json" },
+  { "name": "shopua",       "config": "services/shopua.json" },
+  { "name": "europasport",  "config": "services/europasport.json" },
+  { "name": "adikross",     "config": "services/adikross.json" },
+  { "name": "minoxidil",    "config": "services/minoxidil.json" }
+]

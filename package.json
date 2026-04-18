@@ -26,6 +26,9 @@
     "service:adikross": "node services/run-service.mjs services/adikross.json",
     "service:minoxidil": "node services/run-service.mjs services/minoxidil.json",
     "service:rabona": "node services/run-normalize-sheet.mjs services/rabona.json",
+    "run:all": "node services/run-all.mjs",
+    "run:all:dry": "node services/run-all.mjs --dry-run",
+    "inspect:feed": "node scripts/inspect-feed.mjs",
     "normalize:xls": "node scripts/normalize-xls.mjs",
     "normalize:sheet": "node scripts/normalize-sheet.mjs",
     "export:feeds": "node scripts/export-feeds.mjs"

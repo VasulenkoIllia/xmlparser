@@ -2,71 +2,55 @@ import 'dotenv/config';
 import fs from 'fs';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
-import { google } from 'googleapis';
 import xlsx from 'xlsx';
 import os from 'os';
 import path from 'path';
 import { URLSearchParams } from 'url';
+import {
+  sleep, writeResult, withRetry, colLetter, deepResolve,
+  acquireLock, releaseLock, createSheetsClient,
+  ensureSheet, resizeSheet, clearSheet, writeSheet, upsertMeta, nowStrings,
+} from './core/sheets.mjs';
+import { notifyError, notifyWarn } from './core/telegram.mjs';
 
-const TZ = process.env.TZ || 'UTC';
-const LOCK_TTL_HOURS = Number(process.env.LOCK_TTL_HOURS || 12);
-const LOCK_TTL_MS = LOCK_TTL_HOURS * 60 * 60 * 1000;
+// ─── Config ───────────────────────────────────────────────────────────────────
 
 const DEFAULT_COLUMNS = [
-  { type: 'field', header: 'price', from: ['price'] },
-  { type: 'field', header: 'vendorCode', from: ['vendorCode'] },
+  { type: 'field',         header: 'price',        from: ['price'] },
+  { type: 'field',         header: 'vendorCode',    from: ['vendorCode'] },
   { type: 'picture_image', header: 'picture' },
-  { type: 'pictures', header: 'picture_urls' },
-  { type: 'field', header: 'name', from: ['name'] },
-  { type: 'param', header: 'size', names: ['Розмір'] },
-  { type: 'field', header: 'quantity', from: ['quantity_in_stock'] },
+  { type: 'pictures',      header: 'picture_urls' },
+  { type: 'field',         header: 'name',          from: ['name'] },
+  { type: 'param',         header: 'size',          names: ['Розмір'] },
+  { type: 'field',         header: 'quantity',      from: ['quantity_in_stock'] },
 ];
 
-function resolveEnv(value) {
-  if (typeof value === 'string' && /^\$[A-Z0-9_]+$/.test(value)) {
-    const envVal = process.env[value.slice(1)];
-    if (!envVal) throw new Error(`Env var ${value} is not set`);
-    return envVal;
+function loadConfig(configPath) {
+  if (!configPath) throw new Error('Pass config path: node services/run-service.mjs services/lispo.json');
+  const cfg = deepResolve(JSON.parse(fs.readFileSync(configPath, 'utf8')));
+  for (const key of ['feedUrl', 'sheetId', 'sheetName']) {
+    if (!cfg[key]) throw new Error(`Config missing: ${key}`);
   }
-  return value;
-}
-
-function deepResolve(obj) {
-  if (Array.isArray(obj)) return obj.map(deepResolve);
-  if (obj && typeof obj === 'object') {
-    const out = {};
-    for (const [k, v] of Object.entries(obj)) out[k] = deepResolve(v);
-    return out;
-  }
-  return resolveEnv(obj);
-}
-
-function loadConfig(path) {
-  if (!path) throw new Error('Pass config path: node services/run-service.mjs services/lispo.json');
-  const raw = fs.readFileSync(path, 'utf8');
-  const cfg = deepResolve(JSON.parse(raw));
-  const required = ['feedUrl', 'sheetId', 'sheetName'];
-  for (const key of required) if (!cfg[key]) throw new Error(`Config missing ${key}`);
-  cfg.chunkRows = Number(cfg.chunkRows || process.env.CHUNK_ROWS || 1500);
+  cfg.chunkRows    = Number(cfg.chunkRows    || process.env.CHUNK_ROWS    || 1500);
   cfg.writeRetries = Number(cfg.writeRetries || process.env.WRITE_RETRIES || 3);
   cfg.retryDelayMs = Number(cfg.retryDelayMs || process.env.RETRY_DELAY_MS || 2000);
-  cfg.metaSheetName = cfg.metaSheetName || `${cfg.sheetName}_meta`;
-  cfg.columns = cfg.columns || DEFAULT_COLUMNS;
-  cfg.sourceFormat = String(cfg.sourceFormat || 'xml').toLowerCase();
+  cfg.metaSheetName  = cfg.metaSheetName  || `${cfg.sheetName}_meta`;
+  cfg.columns        = cfg.columns        || DEFAULT_COLUMNS;
+  cfg.sourceFormat   = String(cfg.sourceFormat || 'xml').toLowerCase();
   return cfg;
 }
 
+// ─── Value helpers ────────────────────────────────────────────────────────────
+
 function arrayify(val) {
   if (Array.isArray(val)) return val;
-  if (val === undefined || val === null) return [];
-  return [val];
+  return val === undefined || val === null ? [] : [val];
 }
 
 function getByPath(obj, pathStr) {
   if (!pathStr || typeof pathStr !== 'string') return undefined;
-  const parts = pathStr.split('.');
   let cur = obj;
-  for (const part of parts) {
+  for (const part of pathStr.split('.')) {
     if (cur === undefined || cur === null) return undefined;
     cur = cur[part];
   }
@@ -75,44 +59,32 @@ function getByPath(obj, pathStr) {
 
 function pickField(obj, keys) {
   for (const k of keys) {
-    let val = obj[k];
-    if (val === undefined && typeof k === 'string' && k.includes('.')) {
-      val = getByPath(obj, k);
-    }
+    const val = k.includes('.') ? getByPath(obj, k) : obj[k];
     if (val !== undefined && val !== null) return val;
   }
   return '';
 }
 
 function pickFieldList(obj, options = {}) {
-  const source = pickField(obj, options.from || []);
-  const items = arrayify(source);
+  const items = arrayify(pickField(obj, options.from || []));
   const ignored = new Set((options.ignoreValues || []).map((v) => String(v).trim().toLowerCase()));
   const seen = new Set();
   const values = [];
-
   for (const item of items) {
-    let value;
-    if (options.valueFrom) {
-      value = options.valueFrom === '.' ? item : getByPath(item, options.valueFrom);
-    } else if (options.attr) {
-      value = item?.[`@_${options.attr}`];
-    } else {
-      value = item;
-    }
-
+    let value = options.valueFrom === '.'
+      ? item
+      : options.valueFrom
+      ? getByPath(item, options.valueFrom)
+      : options.attr
+      ? item?.[`@_${options.attr}`]
+      : item;
     if (value === undefined || value === null) continue;
-    const normalized = String(value).trim();
-    if (!normalized || ignored.has(normalized.toLowerCase())) continue;
-
-    if (options.unique !== false) {
-      if (seen.has(normalized)) continue;
-      seen.add(normalized);
-    }
-
-    values.push(normalized);
+    const s = String(value).trim();
+    if (!s || ignored.has(s.toLowerCase())) continue;
+    if (options.unique !== false && seen.has(s)) continue;
+    seen.add(s);
+    values.push(s);
   }
-
   return values.join(options.separator || '; ');
 }
 
@@ -123,22 +95,17 @@ function pickParam(obj, names, options = {}) {
     const wanted = new Set(names);
     const seen = new Set();
     const values = [];
-
     for (const p of params) {
-      const paramName = p?.['@_name'];
-      const rawValue = p?.['#text'];
-      const value = rawValue === undefined || rawValue === null ? '' : String(rawValue).trim();
-      if (!wanted.has(paramName) || !value || ignored.has(value.toLowerCase()) || seen.has(value)) continue;
+      const value = String(p?.['#text'] ?? '').trim();
+      if (!wanted.has(p?.['@_name']) || !value || ignored.has(value.toLowerCase()) || seen.has(value)) continue;
       seen.add(value);
       values.push(value);
     }
-
     return values.join(options.separator || '; ');
   }
-
   for (const name of names) {
     for (const p of params) {
-      const value = p?.['#text'] === undefined || p?.['#text'] === null ? '' : String(p['#text']).trim();
+      const value = String(p?.['#text'] ?? '').trim();
       if (p['@_name'] === name && value && !ignored.has(value.toLowerCase())) return value;
     }
   }
@@ -150,184 +117,101 @@ function toNumberIfPossible(val) {
   if (typeof val !== 'string') return val;
   const trimmed = val.trim();
   if (!trimmed) return '';
-
-  // Support decimals ("1234,56") and formatted thousands from XLS ("7,950").
-  let normalized = trimmed.replace(/\s+/g, '');
-  if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(normalized)) {
-    normalized = normalized.replace(/,/g, '');
-  } else if (/^-?\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(normalized)) {
-    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  let n = trimmed.replace(/\s+/g, '');
+  if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(n)) {
+    n = n.replace(/,/g, '');
+  } else if (/^-?\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(n)) {
+    n = n.replace(/\./g, '').replace(',', '.');
   } else {
-    normalized = normalized.replace(',', '.');
+    n = n.replace(',', '.');
   }
-  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return val;
-
-  const num = Number(normalized);
+  if (!/^-?\d+(?:\.\d+)?$/.test(n)) return val;
+  const num = Number(n);
   return Number.isFinite(num) ? num : val;
 }
 
 function normalizeValueMapKey(val, mode) {
-  if (val === undefined || val === null) return '';
-  const raw = String(val).replace(/\u00a0/g, ' ').trim();
+  const raw = String(val ?? '').replace(/\u00a0/g, ' ').trim();
   if (!raw) return '';
-
   switch (mode) {
     case 'size_cm':
-      return raw
-        .replace(/\s+/g, ' ')
+      return raw.replace(/\s+/g, ' ')
         .replace(/(\d+(?:[.,]\d+)?)\s*см$/i, '$1 см')
         .replace(/^(\d+(?:[.,]\d+)?)\s*см$/i, (_, num) => `${String(num).replace('.', ',')} см`)
         .toLowerCase();
-    case 'lower':
-      return raw.toLowerCase();
-    default:
-      return raw;
+    case 'lower': return raw.toLowerCase();
+    default:      return raw;
   }
 }
 
 function applyValueMap(val, col) {
   if (!col?.valueMap || val === undefined || val === null || val === '') return val;
-
-  const normalizedInput = normalizeValueMapKey(val, col.valueMapNormalize);
-  let mapped;
-
+  const key = normalizeValueMapKey(val, col.valueMapNormalize);
   if (Array.isArray(col.valueMap)) {
-    const matches = [];
-    for (const entry of col.valueMap) {
-      if (!entry) continue;
-      const from = Array.isArray(entry) ? entry[0] : entry.from;
-      const to = Array.isArray(entry) ? entry[1] : entry.to;
-      if (normalizeValueMapKey(from, col.valueMapNormalize) !== normalizedInput) continue;
-      matches.push(to);
-    }
-    if (matches.length === 1) mapped = matches[0];
-    if (matches.length > 1) mapped = matches.join(col.valueMapSeparator || '; ');
-  } else {
-    for (const [from, to] of Object.entries(col.valueMap)) {
-      if (normalizeValueMapKey(from, col.valueMapNormalize) !== normalizedInput) continue;
-      mapped = to;
-      break;
-    }
+    const matches = col.valueMap
+      .filter(Boolean)
+      .filter((e) => normalizeValueMapKey(Array.isArray(e) ? e[0] : e.from, col.valueMapNormalize) === key)
+      .map((e) => Array.isArray(e) ? e[1] : e.to);
+    if (!matches.length) return val;
+    return matches.length === 1 ? matches[0] : matches.join(col.valueMapSeparator || '; ');
   }
-
-  return mapped === undefined ? val : mapped;
+  for (const [from, to] of Object.entries(col.valueMap)) {
+    if (normalizeValueMapKey(from, col.valueMapNormalize) === key) return to;
+  }
+  return val;
 }
 
 function isLikelyNumericColumn(col) {
-  if (col?.asText) return false;
+  if (col?.asText)   return false;
   if (col?.asNumber) return true;
-
-  const positiveHints = [
-    'price',
-    'drop',
-    'discount',
-    'quantity',
-    'stock',
-    'rrc',
-    'retail',
-    'wholesale',
-    'contract',
-    'semi_wholesale',
-    'amount',
-    'sum',
-    'cost',
-    'цена',
-    'ціна',
-    'дроп',
-    'зниж',
-    'скид',
-    'кільк',
-    'колич',
-    'залишк',
-    'остат',
-  ];
-  const negativeHints = [
-    'vendorcode',
-    'vendor_code',
-    'barcode',
-    'uuid',
-    'categoryid',
-    'currencyid',
-    'id',
-    'code',
-    'sku',
-    'model',
-    'url',
-    'name',
-    'picture',
-    'color',
-    'size',
-    'розмір',
-    'размер',
-    'колір',
-    'цвет',
-  ];
-
-  const candidates = [];
-  if (col?.header) candidates.push(String(col.header).toLowerCase());
-  if (Array.isArray(col?.from)) {
-    for (const f of col.from) candidates.push(String(f).toLowerCase());
-  }
-  if (col?.key) candidates.push(String(col.key).toLowerCase());
-
-  const joined = candidates.join(' ');
-  if (!joined) return false;
-
-  const hasPositive = positiveHints.some((h) => joined.includes(h));
-  if (!hasPositive) return false;
-
-  const hasNegative = negativeHints.some((h) => joined.includes(h));
-  return !hasNegative;
+  const positive = ['price','drop','discount','quantity','stock','rrc','retail','wholesale','contract','semi_wholesale','amount','sum','cost','цена','ціна','дроп','зниж','скид','кільк','колич','залишк','остат'];
+  const negative = ['vendorcode','vendor_code','barcode','uuid','categoryid','currencyid','id','code','sku','model','url','name','picture','color','size','розмір','размер','колір','цвет'];
+  const candidates = [col?.header, ...(col?.from || []), col?.key].filter(Boolean).map((s) => String(s).toLowerCase()).join(' ');
+  if (!candidates) return false;
+  return positive.some((h) => candidates.includes(h)) && !negative.some((h) => candidates.includes(h));
 }
 
-function mergeCookies(cookieJar, setCookieHeaders) {
-  const lines = arrayify(setCookieHeaders);
-  for (const line of lines) {
+function normalizeCellValue(val) {
+  if (val === undefined || val === null) return val;
+  if (Array.isArray(val)) return val.map(normalizeCellValue).filter((v) => v !== undefined && v !== null && v !== '').join('; ');
+  if (typeof val === 'object') return Object.prototype.hasOwnProperty.call(val, '#text') ? val['#text'] : JSON.stringify(val);
+  return val;
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+function mergeCookies(jar, headers) {
+  for (const line of arrayify(headers)) {
     if (!line || typeof line !== 'string') continue;
-    const firstPart = line.split(';', 1)[0];
-    const idx = firstPart.indexOf('=');
-    if (idx <= 0) continue;
-    const key = firstPart.slice(0, idx).trim();
-    const value = firstPart.slice(idx + 1).trim();
-    if (key) cookieJar.set(key, value);
+    const first = line.split(';', 1)[0];
+    const idx = first.indexOf('=');
+    if (idx > 0) jar.set(first.slice(0, idx).trim(), first.slice(idx + 1).trim());
   }
 }
 
-function cookieHeader(cookieJar) {
-  return Array.from(cookieJar.entries())
-    .map(([k, v]) => `${k}=${v}`)
-    .join('; ');
+function cookieHeader(jar) {
+  return Array.from(jar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
 function extractCsrfToken(html, tokenField = '_token') {
   if (!html || typeof html !== 'string') return null;
-  const inputRegex = new RegExp(`name=["']${tokenField}["'][^>]*value=["']([^"']+)["']`, 'i');
-  const inputMatch = html.match(inputRegex);
-  if (inputMatch?.[1]) return inputMatch[1];
-
-  const metaMatch = html.match(/<meta[^>]+name=["']csrf-token["'][^>]+content=["']([^"']+)["']/i);
-  if (metaMatch?.[1]) return metaMatch[1];
-  return null;
+  const m = html.match(new RegExp(`name=["']${tokenField}["'][^>]*value=["']([^"']+)["']`, 'i'))
+    || html.match(/<meta[^>]+name=["']csrf-token["'][^>]+content=["']([^"']+)["']/i);
+  return m?.[1] ?? null;
 }
 
 async function buildAuthCookieHeader(authCfg) {
   if (!authCfg) return '';
   if (authCfg.type !== 'form') throw new Error(`Unsupported auth type: ${authCfg.type}`);
   if (!authCfg.loginUrl) throw new Error('Auth config missing loginUrl');
+  if (!authCfg.username || !authCfg.password) throw new Error('Auth config missing username/password');
 
   const usernameField = authCfg.usernameField || 'email';
   const passwordField = authCfg.passwordField || 'password';
-  const tokenField = authCfg.tokenField || '_token';
-  if (!authCfg.username || !authCfg.password) {
-    throw new Error('Auth config missing username/password (or related env vars)');
-  }
-
+  const tokenField    = authCfg.tokenField    || '_token';
   const jar = new Map();
 
-  const loginPage = await axios.get(authCfg.loginUrl, {
-    timeout: 60_000,
-    validateStatus: (s) => s >= 200 && s < 400,
-  });
+  const loginPage = await axios.get(authCfg.loginUrl, { timeout: 60_000, validateStatus: (s) => s < 400 });
   mergeCookies(jar, loginPage.headers?.['set-cookie']);
   const token = extractCsrfToken(loginPage.data, tokenField);
 
@@ -335,640 +219,215 @@ async function buildAuthCookieHeader(authCfg) {
   if (token) formData.set(tokenField, token);
   formData.set(usernameField, authCfg.username);
   formData.set(passwordField, authCfg.password);
-  const extraFields = authCfg.extraFields || {};
-  for (const [k, v] of Object.entries(extraFields)) formData.set(k, String(v));
+  for (const [k, v] of Object.entries(authCfg.extraFields || {})) formData.set(k, String(v));
 
-  const loginHeaders = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-  };
-  const initialCookie = cookieHeader(jar);
-  if (initialCookie) loginHeaders.Cookie = initialCookie;
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  const cookie = cookieHeader(jar);
+  if (cookie) headers.Cookie = cookie;
 
-  const loginResp = await axios.post(authCfg.loginUrl, formData.toString(), {
-    timeout: 60_000,
-    headers: loginHeaders,
-    maxRedirects: 0,
-    validateStatus: (s) => (s >= 200 && s < 400) || s === 302,
+  const resp = await axios.post(authCfg.loginUrl, formData.toString(), {
+    timeout: 60_000, headers, maxRedirects: 0, validateStatus: (s) => s < 400 || s === 302,
   });
-  mergeCookies(jar, loginResp.headers?.['set-cookie']);
+  mergeCookies(jar, resp.headers?.['set-cookie']);
 
   const finalCookie = cookieHeader(jar);
   if (!finalCookie) throw new Error('Auth failed: no cookies after login');
   return finalCookie;
 }
 
-function normalizeCellValue(val) {
-  if (val === undefined || val === null) return val;
-  if (Array.isArray(val)) {
-    return val
-      .map((v) => normalizeCellValue(v))
-      .filter((v) => v !== undefined && v !== null && v !== '')
-      .join('; ');
-  }
-  if (typeof val === 'object') {
-    if (Object.prototype.hasOwnProperty.call(val, '#text')) return val['#text'];
-    return JSON.stringify(val);
-  }
-  return val;
-}
-
-function colLetter(n) {
-  let s = '';
-  while (n) {
-    n -= 1;
-    s = String.fromCharCode(65 + (n % 26)) + s;
-    n = Math.floor(n / 26);
-  }
-  return s;
-}
-
-function isPidAlive(pid) {
-  if (!pid || Number.isNaN(pid)) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-
-function parseLockFile(content) {
-  if (!content) return { pid: null, ts: null };
-  const parts = String(content).trim().split(/\s+/);
-  const pid = Number(parts[0]);
-  const ts = parts[1] ? Number(parts[1]) : null;
-  return {
-    pid: Number.isFinite(pid) ? pid : null,
-    ts: Number.isFinite(ts) ? ts : null,
-  };
-}
-
-function isStaleLock(lockPath, content) {
-  const now = Date.now();
-  const { ts } = parseLockFile(content);
-  if (ts && now - ts > LOCK_TTL_MS) return true;
-  try {
-    const stat = fs.statSync(lockPath);
-    return now - stat.mtimeMs > LOCK_TTL_MS;
-  } catch (err) {
-    return false;
-  }
-}
-
-async function ensureSheet(sheets, spreadsheetId, title, retries, delayMs) {
-  const doc = await withRetry(
-    'get spreadsheet',
-    () => sheets.spreadsheets.get({ spreadsheetId }),
-    retries,
-    delayMs
-  );
-  const sheet = doc.data.sheets?.find((s) => s.properties?.title === title);
-  if (!sheet) {
-    await withRetry(
-      'add sheet',
-      () =>
-        sheets.spreadsheets.batchUpdate({
-          spreadsheetId,
-          requestBody: { requests: [{ addSheet: { properties: { title } } }] },
-        }),
-      retries,
-      delayMs
-    );
-    const refreshed = await withRetry(
-      'refresh spreadsheet',
-      () => sheets.spreadsheets.get({ spreadsheetId }),
-      retries,
-      delayMs
-    );
-    return refreshed.data.sheets?.find((s) => s.properties?.title === title);
-  }
-  return sheet;
-}
-
-async function resizeSheet(sheets, spreadsheetId, sheetObj, neededRows, neededCols, retries, delayMs) {
-  if (!sheetObj) return;
-  const { sheetId, gridProperties = {} } = sheetObj.properties || {};
-  const currentRows = gridProperties.rowCount || 0;
-  const currentCols = gridProperties.columnCount || 0;
-  if (neededRows <= currentRows && neededCols <= currentCols) return;
-  await withRetry(
-    'resize sheet',
-    () =>
-      sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          requests: [
-            {
-              updateSheetProperties: {
-                properties: {
-                  sheetId,
-                  gridProperties: {
-                    rowCount: Math.max(currentRows, neededRows),
-                    columnCount: Math.max(currentCols, neededCols),
-                  },
-                },
-                fields: 'gridProperties(rowCount,columnCount)',
-              },
-            },
-          ],
-        },
-      }),
-    retries,
-    delayMs
-  );
-}
+// ─── Feed fetching ────────────────────────────────────────────────────────────
 
 function extractOffers(parsed) {
-  // YML sometimes: <yml_catalog><offers><offer>
-  let offers = parsed?.yml_catalog?.offers?.offer;
-  if (offers) return offers;
-
-  // YML canonical: <yml_catalog><shop><offers><offer>
-  offers = parsed?.yml_catalog?.shop?.offers?.offer;
-  if (offers) return offers;
-
-  // XML variant: <xml_catalog><offers><offer>
-  offers = parsed?.xml_catalog?.offers?.offer;
-  if (offers) return offers;
-
-  // XML variant: <xml_catalog><shop><offers><offer>
-  offers = parsed?.xml_catalog?.shop?.offers?.offer;
-  if (offers) return offers;
-
-  // Sometimes <shop><offers><offer> without yml_catalog
-  offers = parsed?.shop?.offers?.offer;
-  if (offers) return offers;
-
-  // Some feeds use <catalog><offers><offer>
-  offers = parsed?.catalog?.offers?.offer;
-  if (offers) return offers;
-
-  // Simple products list: <products><product>
-  offers = parsed?.products?.product;
-  if (offers) return offers;
-
+  const paths = [
+    ['yml_catalog', 'offers', 'offer'],
+    ['yml_catalog', 'shop', 'offers', 'offer'],
+    ['xml_catalog', 'offers', 'offer'],
+    ['xml_catalog', 'shop', 'offers', 'offer'],
+    ['shop', 'offers', 'offer'],
+    ['catalog', 'offers', 'offer'],
+    ['products', 'product'],
+  ];
+  for (const parts of paths) {
+    let cur = parsed;
+    for (const p of parts) { cur = cur?.[p]; if (!cur) break; }
+    if (cur) return Array.isArray(cur) ? cur : [cur];
+  }
   return null;
 }
 
-function isAdmToolsChallengePayload(payload) {
-  if (typeof payload !== 'string') return false;
-  return payload.includes('adm.tools') && payload.includes('Захищена сторінка');
+function isAdmToolsChallenge(payload) {
+  return typeof payload === 'string' && payload.includes('adm.tools') && payload.includes('Захищена сторінка');
 }
 
 async function fetchOffers(cfg) {
   const headers = {};
-  if (cfg.auth) {
-    const cookie = await buildAuthCookieHeader(cfg.auth);
-    if (cookie) headers.Cookie = cookie;
-  }
+  if (cfg.auth) headers.Cookie = await buildAuthCookieHeader(cfg.auth);
 
   if (cfg.sourceFormat === 'xlsx') {
-    const tmpExt = path.extname(new URL(cfg.feedUrl).pathname) || '.xlsx';
-    const tmpPath = path.join(os.tmpdir(), `feed-source-${cfg.name || cfg.sheetName}-${process.pid}-${Date.now()}${tmpExt}`);
-
+    const ext = (() => { try { return path.extname(new URL(cfg.feedUrl).pathname); } catch { return '.xlsx'; } })() || '.xlsx';
+    const tmp = path.join(os.tmpdir(), `feed-${cfg.name || cfg.sheetName}-${process.pid}${ext}`);
     try {
-      const fileData = (
-        await axios.get(cfg.feedUrl, {
-          timeout: 60_000,
-          headers,
-          responseType: 'arraybuffer',
-        })
-      ).data;
-
-      fs.writeFileSync(tmpPath, Buffer.from(fileData));
-
-      const workbook = xlsx.readFile(tmpPath, { cellDates: true });
-      const sheetName = cfg.sourceSheetName || workbook.SheetNames[0];
-      if (!sheetName || !workbook.Sheets[sheetName]) {
-        throw new Error(`No sheet found in workbook${sheetName ? `: ${sheetName}` : ''}`);
-      }
-
-      const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {
-        defval: '',
-        raw: false,
+      const data = (await axios.get(cfg.feedUrl, { timeout: 60_000, headers, responseType: 'arraybuffer' })).data;
+      fs.writeFileSync(tmp, Buffer.from(data));
+      const wb = xlsx.readFile(tmp, { cellDates: true });
+      const sheetName = cfg.sourceSheetName || wb.SheetNames[0];
+      if (!sheetName || !wb.Sheets[sheetName]) throw new Error(`Sheet not found${sheetName ? `: ${sheetName}` : ''}`);
+      const rows = xlsx.utils.sheet_to_json(wb.Sheets[sheetName], {
+        defval: '', raw: false,
         range: cfg.sourceHeaderRow ? Number(cfg.sourceHeaderRow) : undefined,
       });
       return Array.isArray(rows) ? rows : [];
     } finally {
-      try {
-        fs.unlinkSync(tmpPath);
-      } catch (err) {
-        // ignore temp cleanup failures
-      }
+      try { fs.unlinkSync(tmp); } catch {}
     }
   }
 
   let xml;
   try {
-    xml = (
-      await axios.get(cfg.feedUrl, {
-        timeout: 60_000,
-        headers,
-        responseType: 'text',
-      })
-    ).data;
+    xml = (await axios.get(cfg.feedUrl, { timeout: 60_000, headers, responseType: 'text' })).data;
   } catch (err) {
-    const status = err?.response?.status;
-    const payload = err?.response?.data;
-    if (status === 429 && isAdmToolsChallengePayload(payload)) {
-      throw new Error(
-        'Blocked by adm.tools anti-bot (HTTP 429). This feed requires IP allowlist or an alternative unprotected source URL.'
-      );
+    if (err?.response?.status === 429 && isAdmToolsChallenge(err?.response?.data)) {
+      throw new Error('Blocked by adm.tools (HTTP 429). Feed requires IP allowlist or alternative URL.');
     }
     throw err;
   }
 
-  if (isAdmToolsChallengePayload(xml)) {
-    throw new Error(
-      'Received anti-bot challenge page instead of feed XML (adm.tools). This feed requires IP allowlist or an alternative unprotected source URL.'
-    );
+  if (isAdmToolsChallenge(xml)) {
+    throw new Error('Received adm.tools anti-bot page instead of feed XML.');
   }
 
-  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
-  const feed = parser.parse(xml);
+  const feed = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' }).parse(xml);
   const offers = extractOffers(feed);
-  if (!offers) {
-    const rootKeys = Object.keys(feed || {});
-    throw new Error(`No offers found in feed (root keys: ${rootKeys.join(', ')})`);
-  }
+  if (!offers) throw new Error(`No offers found in feed (root keys: ${Object.keys(feed || {}).join(', ')})`);
   return Array.isArray(offers) ? offers : [offers];
 }
 
+// ─── Row building ─────────────────────────────────────────────────────────────
+
 function buildRows(offers, cfg) {
-  const headers = cfg.columns.map((c) => c.header);
+  const headers      = cfg.columns.map((c) => c.header);
   const numericFlags = cfg.columns.map((c) => isLikelyNumericColumn(c));
   const rows = [headers];
 
-  offers.forEach((o) => {
+  for (const o of offers) {
     const pics = arrayify(o.picture);
-    const firstPic = pics[0] || '';
-    const rowNumber = rows.length + 1; // sheet row number (header = 1)
+    const rowNumber = rows.length + 1;
 
-    const row = cfg.columns.map((c, colIdx) => {
+    const row = cfg.columns.map((c, idx) => {
       let val = '';
       switch (c.type) {
-        case 'field':
-          val = pickField(o, c.from || []);
-          break;
-        case 'field_list':
-          val = pickFieldList(o, c);
-          break;
-        case 'attribute':
-          val = pickField(o, (c.from || []).map((k) => `@_${k}`)) || (c.key ? o[`@_${c.key}`] : '');
-          break;
-        case 'param':
-          val = pickParam(o, c.names || [], c);
-          break;
-        case 'pictures':
-          val = pics.join('; ');
-          break;
-        case 'picture_image':
-          val = firstPic ? `=IMAGE("${firstPic}")` : '';
-          break;
-        case 'formula':
-          if (c.template) {
-            val = c.template.replaceAll('{row}', rowNumber);
-          }
-          break;
-        default:
-          val = '';
+        case 'field':         val = pickField(o, c.from || []); break;
+        case 'field_list':    val = pickFieldList(o, c); break;
+        case 'attribute':     val = pickField(o, (c.from || []).map((k) => `@_${k}`)) || (c.key ? o[`@_${c.key}`] : ''); break;
+        case 'param':         val = pickParam(o, c.names || [], c); break;
+        case 'pictures':      val = pics.join('; '); break;
+        case 'picture_image': val = pics[0] ? `=IMAGE("${pics[0]}")` : ''; break;
+        case 'formula':       val = c.template ? c.template.replaceAll('{row}', rowNumber) : ''; break;
       }
 
       val = normalizeCellValue(val);
       val = applyValueMap(val, c);
 
-      const needsStringTransforms =
-        c.insideParensOnly || c.stripParens || c.cleanContains || c.removeAfterLastSpace;
-      if (needsStringTransforms && val !== undefined && val !== null && val !== '') {
-        let valStr = String(val);
-
-        if (c.insideParensOnly) {
-          const m = valStr.match(/\(([^)]*)\)/);
-          valStr = m ? m[1].trim() : valStr.trim();
-        }
-
-        if (c.stripParens) {
-          valStr = valStr.replace(/\s*\([^)]*\)/g, '').trim();
-        }
-
-        if (c.cleanContains) {
-          const hit = (Array.isArray(c.cleanContains) ? c.cleanContains : [c.cleanContains]).some((s) =>
-            valStr.includes(s)
-          );
-          valStr = hit ? '' : valStr;
-        }
-
-        if (c.removeAfterLastSpace) {
-          valStr = valStr.replace(/\s+\S+$/, '').trim();
-        }
-
-        val = valStr;
+      if ((c.insideParensOnly || c.stripParens || c.cleanContains || c.removeAfterLastSpace) && val !== '' && val != null) {
+        let s = String(val);
+        if (c.insideParensOnly) { const m = s.match(/\(([^)]*)\)/); s = m ? m[1].trim() : s.trim(); }
+        if (c.stripParens)      s = s.replace(/\s*\([^)]*\)/g, '').trim();
+        if (c.cleanContains)    s = (Array.isArray(c.cleanContains) ? c.cleanContains : [c.cleanContains]).some((w) => s.includes(w)) ? '' : s;
+        if (c.removeAfterLastSpace) s = s.replace(/\s+\S+$/, '').trim();
+        val = s;
       }
 
-      if (numericFlags[colIdx]) {
-        val = toNumberIfPossible(val);
-      }
-
+      if (numericFlags[idx]) val = toNumberIfPossible(val);
       return val;
     });
 
-    let expandedRows = [row];
-    cfg.columns.forEach((c, colIdx) => {
-      if (!c.explodeBySeparator) return;
-
-      const separator = String(c.explodeBySeparator);
-      expandedRows = expandedRows.flatMap((currentRow) => {
-        const cellValue = currentRow[colIdx];
-        if (cellValue === undefined || cellValue === null || cellValue === '') return [currentRow];
-
-        const parts = String(cellValue)
-          .split(separator)
-          .map((part) => part.trim())
-          .filter(Boolean);
-
-        if (parts.length <= 1) return [currentRow];
-
-        return parts.map((part) => {
-          const nextRow = [...currentRow];
-          nextRow[colIdx] = part;
-          return nextRow;
-        });
+    let expanded = [row];
+    for (let ci = 0; ci < cfg.columns.length; ci++) {
+      const sep = cfg.columns[ci].explodeBySeparator;
+      if (!sep) continue;
+      expanded = expanded.flatMap((r) => {
+        const cell = r[ci];
+        if (cell === undefined || cell === null || cell === '') return [r];
+        const parts = String(cell).split(String(sep)).map((p) => p.trim()).filter(Boolean);
+        if (parts.length <= 1) return [r];
+        return parts.map((p) => { const next = [...r]; next[ci] = p; return next; });
       });
-    });
-
-    rows.push(...expandedRows);
-  });
+    }
+    rows.push(...expanded);
+  }
 
   return rows;
 }
 
-async function clearSheet(sheets, spreadsheetId, sheetName, retries, delayMs) {
-  await withRetry(
-    'clear sheet',
-    () => sheets.spreadsheets.values.clear({ spreadsheetId, range: `${sheetName}!A:ZZ` }),
-    retries,
-    delayMs
-  );
-}
+// ─── Resize + format (single batchUpdate) ────────────────────────────────────
 
-const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+async function resizeAndFormat(sheets, spreadsheetId, sheetObj, neededRows, neededCols, columns, dataRowCount, retries, delayMs) {
+  if (!sheetObj) return;
+  const { sheetId, gridProperties = {} } = sheetObj.properties || {};
+  const currentRows = gridProperties.rowCount || 0;
+  const currentCols = gridProperties.columnCount || 0;
+  const requests = [];
 
-async function withRetry(label, fn, attempts, baseDelayMs) {
-  let lastErr;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      const delay = baseDelayMs * Math.pow(2, i - 1);
-      console.warn(`${label} failed (attempt ${i}/${attempts}): ${err.message}. Retry in ${delay}ms`);
-      if (i < attempts) await sleep(delay);
+  if (neededRows > currentRows || neededCols > currentCols) {
+    requests.push({ updateSheetProperties: { properties: { sheetId, gridProperties: { rowCount: Math.max(currentRows, neededRows), columnCount: Math.max(currentCols, neededCols) } }, fields: 'gridProperties(rowCount,columnCount)' } });
+  }
+
+  if (sheetId !== undefined && sheetId !== null) {
+    const endRowIndex = Math.max(2, dataRowCount + 1);
+    for (let i = 0; i < columns.length; i++) {
+      if (isLikelyNumericColumn(columns[i])) {
+        requests.push({ repeatCell: { range: { sheetId, startRowIndex: 1, endRowIndex, startColumnIndex: i, endColumnIndex: i + 1 }, cell: { userEnteredFormat: { numberFormat: { type: 'NUMBER' } } }, fields: 'userEnteredFormat.numberFormat' } });
+      }
     }
   }
-  throw lastErr;
+
+  if (!requests.length) return;
+  await withRetry('resize and format', () => sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } }), retries, delayMs);
 }
 
-async function writeSheet(sheets, spreadsheetId, sheetName, rows, chunkRows, retries, retryDelayMs) {
-  const colCount = rows[0].length;
-  let startRow = 1;
-  for (let i = 0; i < rows.length; i += chunkRows) {
-    const part = rows.slice(i, i + chunkRows);
-    const endRow = startRow + part.length - 1;
-    const range = `${sheetName}!A${startRow}:${colLetter(colCount)}${endRow}`;
-    await withRetry(
-      `write chunk ${i / chunkRows + 1}`,
-      () =>
-        sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range,
-          valueInputOption: 'USER_ENTERED',
-          requestBody: { values: part },
-        }),
-      retries,
-      retryDelayMs
-    );
-    startRow = endRow + 1;
-  }
-}
-
-async function applyNumericColumnFormats(sheets, spreadsheetId, sheetObj, columns, dataRowCount, retries, delayMs) {
-  const sheetId = sheetObj?.properties?.sheetId;
-  if (sheetId === undefined || sheetId === null) return;
-
-  const numericCols = [];
-  for (let i = 0; i < columns.length; i += 1) {
-    if (isLikelyNumericColumn(columns[i])) numericCols.push(i);
-  }
-  if (!numericCols.length) return;
-
-  const endRowIndex = Math.max(2, dataRowCount + 1); // 1-based row -> 0-based exclusive end
-  const requests = numericCols.map((idx) => ({
-    repeatCell: {
-      range: {
-        sheetId,
-        startRowIndex: 1, // skip header
-        endRowIndex,
-        startColumnIndex: idx,
-        endColumnIndex: idx + 1,
-      },
-      cell: { userEnteredFormat: { numberFormat: { type: 'NUMBER' } } },
-      fields: 'userEnteredFormat.numberFormat',
-    },
-  }));
-
-  await withRetry(
-    'numeric formatting',
-    () => sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } }),
-    retries,
-    delayMs
-  );
-}
-
-async function upsertMeta(sheets, cfg, dateStr, timeStr, rowCount) {
-  const metaProps = await ensureSheet(sheets, cfg.sheetId, cfg.metaSheetName, cfg.writeRetries, cfg.retryDelayMs);
-  await resizeSheet(sheets, cfg.sheetId, metaProps, 2, 6, cfg.writeRetries, cfg.retryDelayMs);
-  const values = [['last_update_date', dateStr, 'last_update_time', timeStr, 'rows', rowCount]];
-  await withRetry(
-    'write meta',
-    () =>
-      sheets.spreadsheets.values.update({
-        spreadsheetId: cfg.sheetId,
-        range: `${cfg.metaSheetName}!A1:F1`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values },
-      }),
-    cfg.writeRetries,
-    cfg.retryDelayMs
-  );
-
-  // conditional formatting on date cell B1
-  const sheetId = metaProps?.properties?.sheetId;
-  const rulesToDelete = (metaProps?.conditionalFormats || []).length || 0;
-  const deleteRequests = [];
-  for (let i = rulesToDelete - 1; i >= 0; i--) {
-    deleteRequests.push({ deleteConditionalFormatRule: { sheetId, index: i } });
-  }
-
-  const range = {
-    sheetId,
-    startRowIndex: 0,
-    endRowIndex: 1,
-    startColumnIndex: 1, // B
-    endColumnIndex: 2,   // B only
-  };
-  const greenRule = {
-    addConditionalFormatRule: {
-      index: 0,
-      rule: {
-        ranges: [range],
-        booleanRule: {
-          condition: {
-            type: 'CUSTOM_FORMULA',
-            values: [{ userEnteredValue: '=INT($B$1)=TODAY()' }],
-          },
-          format: { backgroundColor: { red: 0.8, green: 1, blue: 0.8 } },
-        },
-      },
-    },
-  };
-  const redRule = {
-    addConditionalFormatRule: {
-      index: 0,
-      rule: {
-        ranges: [range],
-        booleanRule: {
-          condition: {
-            type: 'CUSTOM_FORMULA',
-            values: [{ userEnteredValue: '=INT($B$1)<>TODAY()' }],
-          },
-          format: { backgroundColor: { red: 1, green: 0.8, blue: 0.8 } },
-        },
-      },
-    },
-  };
-
-  const requests = [...deleteRequests, greenRule, redRule];
-  if (requests.length) {
-    await withRetry(
-      'meta formatting',
-      () => sheets.spreadsheets.batchUpdate({ spreadsheetId: cfg.sheetId, requestBody: { requests } }),
-      cfg.writeRetries,
-      cfg.retryDelayMs
-    );
-  }
-}
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   let lockPath = null;
+  let cfg = null;
+  const startTime = Date.now();
+
   try {
-    const configPath = process.argv[2];
-    const cfg = loadConfig(configPath);
+    cfg = loadConfig(process.argv[2]);
+    lockPath = acquireLock(cfg.name || cfg.sheetName);
 
-    // per-service lock to avoid concurrent runs on the same feed
-    const lockName = `feed-lock-${cfg.name || cfg.sheetName}.lock`;
-    lockPath = path.join(os.tmpdir(), lockName);
-    try {
-      const fd = fs.openSync(lockPath, 'wx');
-      fs.writeSync(fd, `${process.pid} ${Date.now()}`);
-      fs.closeSync(fd);
-    } catch (e) {
-      let existing = null;
-      try {
-        existing = fs.readFileSync(lockPath, 'utf8');
-      } catch (readErr) {
-        existing = null;
-      }
+    const sheets = createSheetsClient();
+    const r = cfg.writeRetries;
+    const d = cfg.retryDelayMs;
 
-      const { pid } = parseLockFile(existing);
-      const alive = pid ? isPidAlive(pid) : false;
-      if (pid && alive) {
-        console.error(
-          `Another run is in progress for ${cfg.name || cfg.sheetName} (pid ${pid}, lock ${lockPath}). Exit.`
-        );
-        process.exit(1);
-      }
+    const offers = await withRetry('fetch feed', () => fetchOffers(cfg), r, d);
+    if (offers.length === 0) await notifyWarn(cfg.name || cfg.sheetName, 'Feed returned 0 offers — sheet was not updated.');
 
-      // If PID from lock is dead, reclaim lock immediately (no need to wait TTL).
-      if ((pid && !alive) || isStaleLock(lockPath, existing)) {
-        try {
-          fs.unlinkSync(lockPath);
-        } catch (unlinkErr) {
-          console.error(`Lock appears stale but failed to remove ${lockPath}: ${unlinkErr.message}`);
-          process.exit(1);
-        }
+    const rows = buildRows(offers, cfg);
+    const sheetProps = await ensureSheet(sheets, cfg.sheetId, cfg.sheetName, r, d);
+    await clearSheet(sheets, cfg.sheetId, cfg.sheetName, r, d);
+    await writeSheet(sheets, cfg.sheetId, cfg.sheetName, rows, cfg.chunkRows, r, d);
+    await resizeAndFormat(sheets, cfg.sheetId, sheetProps, rows.length + 10, rows[0].length + 5, cfg.columns, rows.length - 1, r, d);
 
-        const fd = fs.openSync(lockPath, 'wx');
-        fs.writeSync(fd, `${process.pid} ${Date.now()}`);
-        fs.closeSync(fd);
-      } else {
-        console.error(`Another run is in progress for ${cfg.name || cfg.sheetName} (lock ${lockPath}). Exit.`);
-        process.exit(1);
-      }
-    }
+    const { dateStr, timeStr } = nowStrings();
+    await upsertMeta(sheets, cfg.sheetId, cfg.metaSheetName, r, d, dateStr, timeStr, rows.length - 1);
 
-    const rawKey = process.env.GOOGLE_PRIVATE_KEY || '';
-    const privateKey = rawKey.replace(/\\n/g, '\n');
-    if (!process.env.GOOGLE_CLIENT_EMAIL || !privateKey) {
-      throw new Error('Missing GOOGLE_CLIENT_EMAIL or GOOGLE_PRIVATE_KEY in env');
-    }
-
-    const auth = new google.auth.JWT({
-      email: process.env.GOOGLE_CLIENT_EMAIL,
-      key: privateKey,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-      keyId: process.env.GOOGLE_PRIVATE_KEY_ID,
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-  const offers = await withRetry(
-    'fetch feed',
-    () => fetchOffers(cfg),
-    cfg.writeRetries,
-    cfg.retryDelayMs
-  );
-  const rows = buildRows(offers, cfg);
-
-  const sheetProps = await ensureSheet(sheets, cfg.sheetId, cfg.sheetName, cfg.writeRetries, cfg.retryDelayMs);
-  await resizeSheet(sheets, cfg.sheetId, sheetProps, rows.length + 10, rows[0].length + 5, cfg.writeRetries, cfg.retryDelayMs);
-  await clearSheet(sheets, cfg.sheetId, cfg.sheetName, cfg.writeRetries, cfg.retryDelayMs);
-  await writeSheet(sheets, cfg.sheetId, cfg.sheetName, rows, cfg.chunkRows, cfg.writeRetries, cfg.retryDelayMs);
-  await applyNumericColumnFormats(
-    sheets,
-    cfg.sheetId,
-    sheetProps,
-    cfg.columns,
-    rows.length - 1,
-    cfg.writeRetries,
-    cfg.retryDelayMs
-  );
-
-    const now = new Date();
-    const dateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(now); // yyyy-mm-dd
-    const timeStr = new Intl.DateTimeFormat('en-GB', {
-      timeZone: TZ,
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).format(now);
-    await upsertMeta(sheets, cfg, dateStr, timeStr, rows.length - 1);
-
-    console.log(
-      `Service ${cfg.name || configPath}: updated sheet "${cfg.sheetName}" with ${rows.length - 1} offers, ${rows[0].length} columns.`
-    );
+    const feedId = cfg.name || cfg.sheetName;
+    writeResult(feedId, { ok: true, rows: rows.length - 1, duration: Date.now() - startTime });
+    console.log(`Service ${feedId}: updated "${cfg.sheetName}" with ${rows.length - 1} offers, ${rows[0].length} columns.`);
   } catch (err) {
+    const feedId = cfg?.name || cfg?.sheetName || process.argv[2] || 'unknown';
     console.error('Update failed:', err.message);
     if (err.response) {
       console.error('Response status:', err.response.status);
       console.error('Response data:', JSON.stringify(err.response.data, null, 2));
     }
     if (err.errors) console.error('Errors:', err.errors);
+    writeResult(feedId, { ok: false, error: err.message, duration: Date.now() - startTime });
+    await notifyError(feedId, err);
     process.exit(1);
-  }
-  finally {
-    if (lockPath) {
-      try { fs.unlinkSync(lockPath); } catch (e) {}
-    }
+  } finally {
+    releaseLock(lockPath);
   }
 }
 
