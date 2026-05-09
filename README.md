@@ -125,7 +125,9 @@ docker compose up -d --build
   "sheetName": "offers",          // назва аркуша для запису
 
   // Необов'язкові:
-  "sourceFormat": "xml",          // "xml" (дефолт) або "xlsx"
+  "sourceFormat": "xml",          // "xml" (дефолт), "xlsx", або RSS (auto-detect)
+  // Підтримувані XML структури: yml_catalog, xml_catalog, shop, catalog,
+  // products та Google Merchant RSS (rss → channel → item з g: namespace)
   "sourceSheetName": "Sheet1",    // для XLSX: назва аркуша в файлі
   "sourceHeaderRow": 3,           // для XLSX: рядок з заголовками (0-based)
   "chunkRows": 1500,              // рядків за один запит у Sheets
@@ -153,7 +155,7 @@ docker compose up -d --build
 | `field` | Поле з XML/XLSX (підтримує `from: ["field1","field2"]`, вкладені `prices.contract`) | `{"type":"field","header":"Ціна","from":["price"],"asNumber":true}` |
 | `attribute` | XML-атрибут (`@_id`, `@_available`) | `{"type":"attribute","header":"ID","from":["id"]}` |
 | `param` | XML `<param name="Розмір">` | `{"type":"param","header":"Розмір","names":["Розмір","Размер"]}` |
-| `picture_image` | Формула `=IMAGE(url)` | `{"type":"picture_image","header":"Фото"}` |
+| `picture_image` | Формула `=IMAGE(url)`. За замовчуванням бере поле `<picture>`. Можна вказати `from` щоб брати з іншого поля (напр. `g:image_link`) | `{"type":"picture_image","header":"Фото","from":["g:image_link"]}` |
 | `pictures` | Всі фото через `; ` | `{"type":"pictures","header":"Фото URLs"}` |
 | `formula` | Excel-формула з підстановкою `{row}` | `{"type":"formula","header":"Дроп","template":"=B{row}*0.8"}` |
 | `field_list` | Масив значень → один рядок | `{"type":"field_list","header":"Теги","from":["tags"],"separator":", "}` |
@@ -170,6 +172,7 @@ docker compose up -d --build
 | `stripParens: true` | Видалити все в дужках: `"Nike (40)"` → `"Nike"` |
 | `cleanContains: ["N/A"]` | Очистити поле якщо містить слово |
 | `removeAfterLastSpace: true` | Видалити останнє слово: `"Nike 40"` → `"Nike"` |
+| `extractNumber: true` | Витягти перше число з рядка: `"UAH 17500.00"` → `17500` (корисно для фідів де ціна містить валюту) |
 | `explodeBySeparator: ";"` | Розбити значення і дублювати рядки по одному |
 | `joinMatched: true` | (для param) зібрати всі значення з підходящим іменем |
 | `ignoreValues: ["N/A"]` | Пропускати певні значення |
