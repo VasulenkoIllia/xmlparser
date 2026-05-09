@@ -19,5 +19,6 @@
   { "name": "shopua",       "config": "services/shopua.json" },
   { "name": "europasport",  "config": "services/europasport.json" },
   { "name": "adikross",     "config": "services/adikross.json" },
-  { "name": "minoxidil",    "config": "services/minoxidil.json" }
+  { "name": "minoxidil",    "config": "services/minoxidil.json" },
+  { "name": "store221b",   "config": "services/store221b.json" }
 ]

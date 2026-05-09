@@ -246,6 +246,7 @@ function extractOffers(parsed) {
     ['shop', 'offers', 'offer'],
     ['catalog', 'offers', 'offer'],
     ['products', 'product'],
+    ['rss', 'channel', 'item'],   // Google Merchant / WooCommerce RSS feeds
   ];
   for (const parts of paths) {
     let cur = parsed;
@@ -321,7 +322,7 @@ function buildRows(offers, cfg) {
         case 'attribute':     val = pickField(o, (c.from || []).map((k) => `@_${k}`)) || (c.key ? o[`@_${c.key}`] : ''); break;
         case 'param':         val = pickParam(o, c.names || [], c); break;
         case 'pictures':      val = pics.join('; '); break;
-        case 'picture_image': val = pics[0] ? `=IMAGE("${pics[0]}")` : ''; break;
+        case 'picture_image': { const u = c.from ? pickField(o, c.from) : pics[0]; val = u ? `=IMAGE("${u}")` : ''; break; }
         case 'formula':       val = c.template ? c.template.replaceAll('{row}', rowNumber) : ''; break;
       }
 
@@ -337,6 +338,10 @@ function buildRows(offers, cfg) {
         val = s;
       }
 
+      if (c.extractNumber && val !== '' && val != null) {
+        const m = String(val).match(/-?\d[\d\s]*(?:[.,]\d+)?/);
+        val = m ? m[0].replace(/\s/g, '') : val;
+      }
       if (numericFlags[idx]) val = toNumberIfPossible(val);
       return val;
     });
