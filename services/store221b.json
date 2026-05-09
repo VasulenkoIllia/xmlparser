@@ -8,7 +8,6 @@
     { "header": "price", "type": "field",         "from": ["g:price"], "extractNumber": true, "asNumber": true },
     { "header": "mpn",   "type": "field",         "from": ["g:mpn"],   "asText": true },
     { "header": "gtin",  "type": "field",         "from": ["g:gtin"],  "asText": true },
-    { "header": "size",  "type": "field",         "from": ["g:size"] },
-    { "header": "photo", "type": "picture_image", "from": ["g:image_link"] }
+    { "header": "size",  "type": "field", "from": ["g:size"] }
   ]
 }
