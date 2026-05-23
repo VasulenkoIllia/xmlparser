@@ -11,7 +11,7 @@
     { "type": "field",         "header": "quantity_in_stock","from": ["quantity_in_stock", "quantity"], "asNumber": true },
     {
       "type": "param",
-      "header": "param:Размер",
+      "header": "Размер",
       "names": ["Размер", "Размер поставщика", "Розмір", "Розмір комірки", "Розмір постачальника"],
       "joinMatched": true,
       "ignoreValues": ["Ні", "Нет", "No"]
@@ -28,22 +28,22 @@
     { "type": "field",         "header": "currency",         "from": ["currencyId"] },
     { "type": "field",         "header": "description",      "from": ["description"] },
 
-    { "type": "param", "header": "param:Колір",              "names": ["Колір", "Базовий колір"] },
-    { "type": "param", "header": "param:Стать",              "names": ["Стать", "Пол"] },
-    { "type": "param", "header": "param:Призначення",        "names": ["Призначення", "Предназначение"] },
-    { "type": "param", "header": "param:Склад",              "names": ["Склад"] },
-    { "type": "param", "header": "param:Англійська назва",   "names": ["Англійське найменування"] },
-    { "type": "param", "header": "param:Вид",                "names": ["Вид"] },
-    { "type": "param", "header": "param:Тип",                "names": ["Тип"] },
-    { "type": "param", "header": "param:Вага",               "names": ["Вага"] },
-    { "type": "param", "header": "param:Країна бренду",      "names": ["Країна реєстрації бренду"] },
-    { "type": "param", "header": "param:Висота (см)",        "names": ["Висота (см.)"] },
-    { "type": "param", "header": "param:Довжина (см)",       "names": ["Довжина (см.)"] },
-    { "type": "param", "header": "param:Ширина (см)",        "names": ["Ширина (см.)"] },
-    { "type": "param", "header": "param:Діаметр (см)",       "names": ["Діаметр чаші (см.)"] },
-    { "type": "param", "header": "param:Матеріал поверхні",  "names": ["Матеріал поверхні м'яча"] },
-    { "type": "param", "header": "param:Тип з'єднання",      "names": ["Тип з'єднання панелей"] },
-    { "type": "param", "header": "param:Тип м'яча",          "names": ["Тип мяча"] },
-    { "type": "param", "header": "param:Клас м'яча",         "names": ["Клас м'яча"] }
+    { "type": "param", "header": "Колір",              "names": ["Колір", "Базовий колір"] },
+    { "type": "param", "header": "Стать",              "names": ["Стать", "Пол"] },
+    { "type": "param", "header": "Призначення",        "names": ["Призначення", "Предназначение"] },
+    { "type": "param", "header": "Склад",              "names": ["Склад"] },
+    { "type": "param", "header": "Англійська назва",   "names": ["Англійське найменування"] },
+    { "type": "param", "header": "Вид",                "names": ["Вид"] },
+    { "type": "param", "header": "Тип",                "names": ["Тип"] },
+    { "type": "param", "header": "Вага",               "names": ["Вага"] },
+    { "type": "param", "header": "Країна бренду",      "names": ["Країна реєстрації бренду"] },
+    { "type": "param", "header": "Висота (см)",        "names": ["Висота (см.)"] },
+    { "type": "param", "header": "Довжина (см)",       "names": ["Довжина (см.)"] },
+    { "type": "param", "header": "Ширина (см)",        "names": ["Ширина (см.)"] },
+    { "type": "param", "header": "Діаметр (см)",       "names": ["Діаметр чаші (см.)"] },
+    { "type": "param", "header": "Матеріал поверхні",  "names": ["Матеріал поверхні м'яча"] },
+    { "type": "param", "header": "Тип з'єднання",      "names": ["Тип з'єднання панелей"] },
+    { "type": "param", "header": "Тип м'яча",          "names": ["Тип мяча"] },
+    { "type": "param", "header": "Клас м'яча",         "names": ["Клас м'яча"] }
   ]
 }
