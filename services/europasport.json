@@ -43,6 +43,19 @@
         "31,5 см": "48",
         "32 см": "49"
       }
-    }
+    },
+    { "type": "field", "header": "Артикул",                      "from": ["Артикул"],                                    "asText": true },
+    { "type": "field", "header": "Родительский артикул",         "from": ["Родительский артикул"],                       "asText": true },
+    { "type": "field", "header": "Название (RU)",                "from": ["Название (RU)"] },
+    { "type": "field", "header": "Раздел",                       "from": ["Раздел"] },
+    { "type": "field", "header": "Старая цена",                  "from": ["Старая цена"],                                "asNumber": true },
+    { "type": "field", "header": "Наличие",                      "from": ["Наличие"] },
+    { "type": "field", "header": "Фото",                         "from": ["Фото"] },
+    { "type": "field", "header": "Ссылка",                       "from": ["Ссылка"] },
+    { "type": "field", "header": "Количество",                   "from": ["Количество"],                                 "asNumber": true },
+    { "type": "field", "header": "Цвет",                         "from": ["Цвет"] },
+    { "type": "field", "header": "Штрихкод",                     "from": ["Штрихкод"],                                   "asText": true },
+    { "type": "field", "header": "Код производителя (MPN)",      "from": ["Код производителя товара (MPN)"],             "asText": true },
+    { "type": "field", "header": "Вид спорта",                   "from": ["Вид спорта"] }
   ]
 }
