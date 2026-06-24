@@ -15,6 +15,14 @@ import { notifyError, notifyWarn } from './core/telegram.mjs';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
+// Some feeds sit behind Cloudflare/WAF that reject the default `axios/x.y` User-Agent
+// with HTTP 403. Present a browser-like UA so those requests pass the bot check.
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'uk-UA,uk;q=0.9,en;q=0.8',
+};
+
 const DEFAULT_COLUMNS = [
   { type: 'field',         header: 'price',        from: ['price'] },
   { type: 'field',         header: 'vendorCode',    from: ['vendorCode'] },
@@ -211,7 +219,7 @@ async function buildAuthCookieHeader(authCfg) {
   const tokenField    = authCfg.tokenField    || '_token';
   const jar = new Map();
 
-  const loginPage = await axios.get(authCfg.loginUrl, { timeout: 60_000, validateStatus: (s) => s < 400 });
+  const loginPage = await axios.get(authCfg.loginUrl, { timeout: 60_000, headers: { ...BROWSER_HEADERS }, validateStatus: (s) => s < 400 });
   mergeCookies(jar, loginPage.headers?.['set-cookie']);
   const token = extractCsrfToken(loginPage.data, tokenField);
 
@@ -221,7 +229,7 @@ async function buildAuthCookieHeader(authCfg) {
   formData.set(passwordField, authCfg.password);
   for (const [k, v] of Object.entries(authCfg.extraFields || {})) formData.set(k, String(v));
 
-  const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  const headers = { ...BROWSER_HEADERS, 'Content-Type': 'application/x-www-form-urlencoded' };
   const cookie = cookieHeader(jar);
   if (cookie) headers.Cookie = cookie;
 
@@ -261,7 +269,7 @@ function isAdmToolsChallenge(payload) {
 }
 
 async function fetchOffers(cfg) {
-  const headers = {};
+  const headers = { ...BROWSER_HEADERS };
   if (cfg.auth) headers.Cookie = await buildAuthCookieHeader(cfg.auth);
 
   if (cfg.sourceFormat === 'xlsx') {
