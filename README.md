@@ -217,10 +217,10 @@ npm run normalize:xls -- input.xls output.xlsx
 
 ```bash
 # 1. Зайти на сервер
-ssh user@your-server
+ssh workflo@WorkfloMain
 
 # 2. Перейти в директорію проєкту
-cd /path/to/xmlparser
+cd /var/www/projects/xmlparser
 
 # 3. Отримати зміни
 git pull
@@ -230,10 +230,18 @@ git pull
 # Без --build контейнер продовжує використовувати старий образ зі старими файлами.
 docker compose up -d --build
 
-# Перевірити що все запустилось:
+# 5. Перевірити що все запустилось:
 docker compose ps
 docker logs feeds-runner --tail=50
 docker logs ofelia --tail=20
+```
+
+### Тест одного фіду після деплою (без очікування cron)
+
+```bash
+# Реальна вигрузка одного фіду (пише в його Google-аркуш):
+docker exec feeds-runner node services/run-all.mjs --name store221b
+docker logs feeds-runner --tail=20
 ```
 
 ---
