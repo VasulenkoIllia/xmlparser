@@ -272,6 +272,19 @@ async function fetchOffers(cfg) {
   const headers = { ...BROWSER_HEADERS };
   if (cfg.auth) headers.Cookie = await buildAuthCookieHeader(cfg.auth);
 
+  if (cfg.sourceFormat === 'csv') {
+    // CSV читаємо як UTF-8 текст (не через тимчасовий файл), щоб не поламати кирилицю.
+    const data = (await axios.get(cfg.feedUrl, { timeout: 60_000, headers, responseType: 'text' })).data;
+    const wb = xlsx.read(data, { type: 'string', codepage: 65001 });
+    const sheetName = cfg.sourceSheetName || wb.SheetNames[0];
+    if (!sheetName || !wb.Sheets[sheetName]) throw new Error(`Sheet not found${sheetName ? `: ${sheetName}` : ''}`);
+    const rows = xlsx.utils.sheet_to_json(wb.Sheets[sheetName], {
+      defval: '', raw: false,
+      range: cfg.sourceHeaderRow ? Number(cfg.sourceHeaderRow) : undefined,
+    });
+    return Array.isArray(rows) ? rows : [];
+  }
+
   if (cfg.sourceFormat === 'xlsx') {
     const ext = (() => { try { return path.extname(new URL(cfg.feedUrl).pathname); } catch { return '.xlsx'; } })() || '.xlsx';
     const tmp = path.join(os.tmpdir(), `feed-${cfg.name || cfg.sheetName}-${process.pid}${ext}`);
@@ -407,6 +420,21 @@ async function main() {
 
   try {
     cfg = loadConfig(process.argv[2]);
+
+    // Dry-run: тестова вигрузка у локальний файл, без запису в Google Sheets.
+    // Вмикається лише через env DRY_RUN_FILE — на бойову роботу не впливає.
+    if (process.env.DRY_RUN_FILE) {
+      const outPath = process.env.DRY_RUN_FILE;
+      const offers = await withRetry('fetch feed', () => fetchOffers(cfg), cfg.writeRetries, cfg.retryDelayMs);
+      const rows = buildRows(offers, cfg);
+      const ws = xlsx.utils.aoa_to_sheet(rows);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, cfg.sheetName || 'offers');
+      xlsx.writeFile(wb, outPath);
+      console.log(`[DRY RUN] ${cfg.name || cfg.sheetName}: ${offers.length} offers → ${rows.length - 1} rows, ${rows[0].length} cols → ${outPath}`);
+      return;
+    }
+
     lockPath = acquireLock(cfg.name || cfg.sheetName);
 
     const sheets = createSheetsClient();

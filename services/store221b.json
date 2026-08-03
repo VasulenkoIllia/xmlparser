@@ -1,13 +1,14 @@
 {
   "name": "store221b",
-  "feedUrl": "https://www.221b.store/wp-content/uploads/woo-product-feed-pro/xml/zL59fUb2L4Vp1mRoxWmM4JH7zLcZfFaD.xml",
+  "feedUrl": "https://www.221b.store/wp-content/uploads/woo-product-feed-pro/csv/cht6csfe7up6ezonbmg0zwmswrv6kbkz.csv",
+  "sourceFormat": "csv",
   "sheetId": "1RPTjL6CfMZSvdvv4dV-scJ7QY-uo5rc-N1KNwdohU1Q",
   "sheetName": "offers",
   "columns": [
-    { "header": "title", "type": "field",         "from": ["g:title"] },
-    { "header": "price", "type": "field",         "from": ["g:price"], "extractNumber": true, "asNumber": true },
-    { "header": "mpn",   "type": "field",         "from": ["g:mpn"],   "asText": true },
-    { "header": "gtin",  "type": "field",         "from": ["g:gtin"],  "asText": true },
-    { "header": "size",  "type": "field", "from": ["g:size"] }
+    { "header": "title", "type": "field",         "from": ["title", "g:title"] },
+    { "header": "price", "type": "field",         "from": ["price", "g:price"], "extractNumber": true, "asNumber": true },
+    { "header": "mpn",   "type": "field",         "from": ["mpn", "g:mpn"],   "asText": true },
+    { "header": "gtin",  "type": "field",         "from": ["gtin", "g:gtin"],  "asText": true },
+    { "header": "size",  "type": "field",         "from": ["size", "g:size"] }
   ]
 }
