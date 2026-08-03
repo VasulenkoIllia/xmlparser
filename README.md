@@ -120,14 +120,16 @@ docker compose up -d --build
 ```jsonc
 {
   "name": "my_supplier",          // ідентифікатор (використовується в логах і Telegram)
-  "feedUrl": "https://...",       // URL фіду (XML або XLSX)
+  "feedUrl": "https://...",       // URL фіду (XML, XLSX або CSV)
   "sheetId": "GOOGLE_SHEET_ID",  // ID Google Sheets документу
   "sheetName": "offers",          // назва аркуша для запису
 
   // Необов'язкові:
-  "sourceFormat": "xml",          // "xml" (дефолт), "xlsx", або RSS (auto-detect)
+  "sourceFormat": "xml",          // "xml" (дефолт), "xlsx", "csv", або RSS (auto-detect)
   // Підтримувані XML структури: yml_catalog, xml_catalog, shop, catalog,
   // products та Google Merchant RSS (rss → channel → item з g: namespace)
+  // CSV: читається як UTF-8 текст (кирилиця коректна); заголовок = імена колонок,
+  //      у `from` вказуй імена CSV-стовпців (напр. "title", "price", "mpn").
   "sourceSheetName": "Sheet1",    // для XLSX: назва аркуша в файлі
   "sourceHeaderRow": 3,           // для XLSX: рядок з заголовками (0-based)
   "chunkRows": 1500,              // рядків за один запит у Sheets
@@ -196,6 +198,11 @@ npm run run:all:dry
 
 # Конкретний фід через run-all:
 node services/run-all.mjs --name lispo
+
+# Тестова вигрузка у ЛОКАЛЬНИЙ файл (нічого не пише в Google Sheets):
+# проганяє реальний код (fetchOffers + buildRows) і зберігає результат у .xlsx.
+# Зручно перевірити новий/змінений конфіг перед деплоєм.
+DRY_RUN_FILE=~/Desktop/test.xlsx node services/run-service.mjs services/store221b.json
 
 # Інспекція нового фіду:
 npm run inspect:feed -- --url https://supplier.com/feed.xml --name supplier_name
