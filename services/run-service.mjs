@@ -11,7 +11,7 @@ import {
   acquireLock, releaseLock, createSheetsClient,
   ensureSheet, resizeSheet, clearSheet, writeSheet, upsertMeta, nowStrings,
 } from './core/sheets.mjs';
-import { notifyError, notifyWarn } from './core/telegram.mjs';
+import { notifyError } from './core/telegram.mjs';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -442,7 +442,9 @@ async function main() {
     const d = cfg.retryDelayMs;
 
     const offers = await withRetry('fetch feed', () => fetchOffers(cfg), r, d);
-    if (offers.length === 0) await notifyWarn(cfg.name || cfg.sheetName, 'Feed returned 0 offers — sheet was not updated.');
+    // Порожній фід не пишемо: buildRows віддав би самі заголовки, а clear+write
+    // затерли б попередні дані. Краще впасти і лишити в аркуші минулий успішний прогін.
+    if (offers.length === 0) throw new Error('Feed returned 0 offers — refusing to overwrite the sheet.');
 
     const rows = buildRows(offers, cfg);
     const sheetProps = await ensureSheet(sheets, cfg.sheetId, cfg.sheetName, r, d);

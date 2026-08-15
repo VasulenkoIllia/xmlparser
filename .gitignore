@@ -11,3 +11,6 @@ package-lock.json
 downloads/
 # docker/local
 *.lock
+
+# приватні операційні нотатки (реальні хости/IP/доступи) — репозиторій публічний
+ops/

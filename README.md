@@ -61,7 +61,7 @@ LOCK_TTL_HOURS=12       # через скільки годин вважати lo
 | Подія | Повідомлення | Коли |
 |-------|-------------|------|
 | Помилка фіду | `❌ arnica_stock\nConnection timeout...` | Одразу при збої |
-| 0 офферів | `⚠️ soccerlife\nFeed returned 0 offers` | Одразу |
+| 0 офферів | `❌ soccerlife\nFeed returned 0 offers — refusing to overwrite the sheet.` | Одразу; фід переривається, аркуш лишається з попередніми даними |
 | Підсумок (є помилки) | `⚠️ Оновлення завершено: 20/21 успішно\n✅ lispo...\n❌ arnica_stock...` | Після завершення run-all |
 | Все ОК | — (мовчить) | — |
 
@@ -74,7 +74,7 @@ LOCK_TTL_HOURS=12       # через скільки годин вважати lo
 4 запуски на добу (Europe/Kyiv). Кожен запуск виконує всі фіди **послідовно** з паузою `FEED_DELAY_MS` між ними:
 
 ```
-00:00  →  run-all.mjs  (усі 21 фід, ~20 хв)
+00:00  →  run-all.mjs  (усі 22 фіди, ~20 хв)
 06:00  →  run-all.mjs
 12:00  →  run-all.mjs
 18:00  →  run-all.mjs
@@ -213,27 +213,70 @@ npm run normalize:xls -- input.xls output.xlsx
 
 ---
 
-## Оновлення на сервері
+## Деплой і оновлення на сервері
+
+Сервер: `whitehall` (Hetzner, Ubuntu 26.04). Перенесено з `WorkfloMain` 08.08.2026.
+Шлях проєкту незмінний: `/var/www/projects/xmlparser`.
+Реальні хост/порт/користувач — в `ops/whitehall-migration.md` (поза git, репозиторій публічний).
+
+### Схема деплою: код через git, документація — ні
+
+Робоча копія на сервері — це **partial clone + sparse-checkout**. Оновлення йдуть через `git pull`, але markdown-файли на сервер не потрапляють:
+
+| Механізм | Що дає |
+|---|---|
+| `git clone --filter=blob:none` | partial clone: git не завантажує вміст виключених файлів навіть у `.git` |
+| `core.sparseCheckout=true`, `core.sparseCheckoutCone=false` | режим, який розуміє правила-заперечення |
+| `.git/info/sparse-checkout` | сам список правил |
+| правило `!*.md` | будь-який markdown з будь-якою назвою лишається поза сервером |
+| правила `!/docs/`, `!/.idea/` | тека документації і конфіги IDE |
+
+Виключені файли позначені в індексі як `S` (skip-worktree) — git про них знає, тому `git pull` не конфліктує і не намагається їх відновити.
+
+Правило живе в `.git/info/sparse-checkout` **конкретного клону, не в репозиторії** — при переклонуванні його треба задати повторно.
+
+Додатковий шар, який працює сам собою: [`Dockerfile`](Dockerfile) копіює в образ лише `package.json`, `services/`, `scripts/` — тому в контейнер документація не потрапляє в жодному разі.
+
+### Оновлення (звичайний цикл)
 
 ```bash
-# 1. Зайти на сервер
-ssh workflo@WorkfloMain
+cd /var/www/projects/xmlparser && git pull && docker compose up -d --build && docker compose ps
+```
 
-# 2. Перейти в директорію проєкту
-cd /var/www/projects/xmlparser
+⚠️ **`--build` обовʼязковий.** `git pull` оновлює файли лише на хості; без перезбірки контейнер продовжує працювати зі старим кодом, вшитим в образ. Це найчастіша помилка при деплої цього проєкту.
 
-# 3. Отримати зміни
-git pull
+Перевірка після оновлення:
 
-# 4. Перебудувати і перезапустити (з downtime ~5 сек)
-# ⚠️ ВАЖЛИВО: git pull оновлює файли лише на хості.
-# Без --build контейнер продовжує використовувати старий образ зі старими файлами.
+```bash
+docker compose ps && docker logs feeds-runner --tail=50 && docker logs ofelia --tail=20
+```
+
+### Правила роботи з сервером
+
+1. **Не редагувати файли безпосередньо на сервері.** Sparse-checkout цьому не перешкоджає, але наступний `git pull` дасть конфлікт і прод розійдеться з репозиторієм. Цикл змін: локально → commit → push → `git pull` на сервері.
+2. **Нову документацію класти в `docs/` або давати розширення `.md`** — обидва варіанти вже виключені правилом.
+3. **Реальні доступи не комітити.** Репозиторій публічний.
+
+### Первинне розгортання з нуля
+
+```bash
+cd /var/www/projects && git clone --filter=blob:none --no-checkout https://github.com/VasulenkoIllia/xmlparser.git xmlparser
+```
+
+```bash
+cd /var/www/projects/xmlparser && git config core.sparseCheckout true && git config core.sparseCheckoutCone false && printf '/*\n!*.md\n!/docs/\n!/.idea/\n' > .git/info/sparse-checkout && git checkout main
+```
+
+Далі покласти `.env` (через `scp`, не копіпастом — у `GOOGLE_PRIVATE_KEY` є `\n`-послідовності), виставити `chmod 600`, і піднімати:
+
+```bash
 docker compose up -d --build
+```
 
-# 5. Перевірити що все запустилось:
-docker compose ps
-docker logs feeds-runner --tail=50
-docker logs ofelia --tail=20
+Перевірка, що документації на диску немає:
+
+```bash
+git ls-files -t | grep -E '^S'
 ```
 
 ### Тест одного фіду після деплою (без очікування cron)
@@ -263,6 +306,8 @@ docker logs feeds-runner --tail=20
 ## Ліміти та застереження
 
 - `picture_urls` може обрізатися Sheets якщо рядок > ~50KB (багато фото на офер).
+- **Ліміт комірки Google Sheets — 50 000 символів.** Один задовгий опис валить увесь запис фіду. Через це в `shopua` прибрано колонку `description`: товар `IN437551` мав опис на 61 425 символів і фід не оновлювався з 13.08.2026. Якщо додаєте колонку з описом — переконайтесь, що постачальник не пише в неї полотна.
+- Порожній фід (0 офферів) навмисно перериває оновлення з помилкою, а не пише порожній аркуш — інакше `clear` + `write` затерли б дані попереднього прогону.
 - `soccerlife` качається з `slife.ua/prom.xml` (заміна старого домену `soccerlife.com.ua`, який мав anti-bot `adm.tools`/HTTP 429); параметр розміру в новому фіді має єдину назву `Розмір`.
 - Clear → write не атомарна операція: короткий момент порожнього аркуша між очисткою і записом.
 - Великі фіди (>50k офферів) завантажуються повністю в пам'ять — потокового парсингу немає.

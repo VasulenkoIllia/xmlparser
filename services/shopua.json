@@ -26,7 +26,6 @@
     { "type": "attribute",     "header": "in_stock",         "from": ["in_stock"] },
     { "type": "field",         "header": "category_id",      "from": ["categoryId"] },
     { "type": "field",         "header": "currency",         "from": ["currencyId"] },
-    { "type": "field",         "header": "description",      "from": ["description"] },
 
     { "type": "param", "header": "Колір",              "names": ["Колір", "Базовий колір"] },
     { "type": "param", "header": "Стать",              "names": ["Стать", "Пол"] },
